@@ -15,6 +15,7 @@ import ../utils/drawextras
 import ./vulkan_blur
 import ./vulkan_resources
 import ./vulkan_utils
+import ./spirv
 
 export drawextras
 export vulkan_utils
@@ -25,10 +26,17 @@ logScope:
 const
   UseVulkanValidation* {.booldefine: "figdraw.vulkanValidation".} = false
   quadLimit = 10_921
-  sdfVertSpv = staticRead("shaders/sdf.vert.spv")
-  sdfFragSpv = staticRead("shaders/sdf.frag.spv")
-  blurVertSpv = staticRead("shaders/blur.vert.spv")
-  blurFragSpv = staticRead("shaders/blur.frag.spv")
+  sdfVertSpv = spirvWords(staticRead("shaders/sdf.vert.spv"))
+  sdfFragSpv = spirvWords(staticRead("shaders/sdf.frag.spv"))
+  blurVertSpv = spirvWords(staticRead("shaders/blur.vert.spv"))
+  blurFragSpv = spirvWords(staticRead("shaders/blur.frag.spv"))
+
+template shaderModuleInfo(code: untyped): VkShaderModuleCreateInfo =
+  VkShaderModuleCreateInfo(
+    sType: VkStructureType.ShaderModuleCreateInfo,
+    codeSize: sizeof(code).uint,
+    pCode: cast[ptr uint32](unsafeAddr code[0]),
+  )
 
 when defined(emscripten):
   type SdfModeData = float32
@@ -863,10 +871,10 @@ proc createPipeline(ctx: VulkanContext) =
   )
 
   if ctx.vertShader == vkNullShaderModule:
-    let vertInfo = newVkShaderModuleCreateInfo(code = sdfVertSpv)
+    let vertInfo = shaderModuleInfo(sdfVertSpv)
     ctx.vertShader = ctx.vk.createShaderModule(ctx.device, vertInfo)
   if ctx.fragShader == vkNullShaderModule:
-    let fragInfo = newVkShaderModuleCreateInfo(code = sdfFragSpv)
+    let fragInfo = shaderModuleInfo(sdfFragSpv)
     ctx.fragShader = ctx.vk.createShaderModule(ctx.device, fragInfo)
 
   let vertStage = newVkPipelineShaderStageCreateInfo(
@@ -1814,11 +1822,12 @@ proc ensureGpuRuntime(ctx: VulkanContext) =
     vendorId = ctx.driverInfo.vendorId,
     swapchainProfile = $ctx.activeSwapchainProfile
 
-  var queueCreateInfos = @[
-    newVkDeviceQueueCreateInfo(
-      queueFamilyIndex = ctx.queueFamily, queuePriorities = [1.0'f32]
-    )
-  ]
+  var queueCreateInfos =
+    @[
+      newVkDeviceQueueCreateInfo(
+        queueFamilyIndex = ctx.queueFamily, queuePriorities = [1.0'f32]
+      )
+    ]
   if ctx.presentQueueFamily != ctx.queueFamily:
     queueCreateInfos.add(
       newVkDeviceQueueCreateInfo(

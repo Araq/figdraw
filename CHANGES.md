@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Embed Vulkan shaders as aligned 32-bit word arrays, avoiding MSVC's C string
+  literal size limit while preserving the shader bytes and static storage.
+
 - Use Siwin's platform ABI fixes and reusable X11 visual/XCB helpers.
   Pin upstream Siwin with merged [#58](https://github.com/levovix0/siwin/pull/58).
 - Accept Siwin's `uint64` Vulkan surfaces without losing their upper bits;

@@ -10,6 +10,23 @@ on:
 
 
 jobs:
+  msvc-shader-embedding:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: '2.2.10'
+    - name: Verify embedded SPIR-V with MSVC
+      shell: pwsh
+      run: |
+        nim c -r --cc:vcc --skipParentCfg:on --mm:arc --threads:on tests/tspirv.nim
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   tests:
     if: github.event_name != 'release'
     name: ${{ matrix.os }}-${{ matrix.display }}-${{ matrix.renderer }}-devel

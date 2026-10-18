@@ -156,10 +156,10 @@ template vulkanBlurCreatePipeline*(ctx: untyped) =
   )
 
   if ctx.blurVertShader == vkNullShaderModule:
-    let vertInfo = newVkShaderModuleCreateInfo(code = blurVertSpv)
+    let vertInfo = shaderModuleInfo(blurVertSpv)
     ctx.blurVertShader = ctx.vk.createShaderModule(ctx.device, vertInfo)
   if ctx.blurFragShader == vkNullShaderModule:
-    let fragInfo = newVkShaderModuleCreateInfo(code = blurFragSpv)
+    let fragInfo = shaderModuleInfo(blurFragSpv)
     ctx.blurFragShader = ctx.vk.createShaderModule(ctx.device, fragInfo)
 
   let vertStage = newVkPipelineShaderStageCreateInfo(
