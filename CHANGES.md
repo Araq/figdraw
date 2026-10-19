@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Respect Harfbuzzy's static linking option when importing glyph-drawing
+  functions, so glyph rasterization does not load a second HarfBuzz library.
+
 - Use Siwin's platform ABI fixes and reusable X11 visual/XCB helpers.
   Pin upstream Siwin with merged [#58](https://github.com/levovix0/siwin/pull/58).
 - Accept Siwin's `uint64` Vulkan surfaces without losing their upper bits;
