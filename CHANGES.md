@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.45.0
+
+- Respect Harfbuzzy's static linking option when importing glyph-drawing
+  functions, so glyph rasterization does not load a second HarfBuzz library.
+- Require Harfbuzzy 0.3.0 for dynamic and static builds.
+- Use concrete query-parameter iterators with Windy to support Nim devel.
+
+## 0.44.0
+
 - Use Siwin's platform ABI fixes and reusable X11 visual/XCB helpers.
   Pin upstream Siwin with merged [#58](https://github.com/levovix0/siwin/pull/58).
 - Accept Siwin's `uint64` Vulkan surfaces without losing their upper bits;

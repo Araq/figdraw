@@ -320,6 +320,16 @@ jobs:
       run: |
         nim test
 
+    - name: Test static HarfBuzz shaping and rasterization
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake meson ninja
+        nim c -r -d:figdrawTextBackend=harfbuzzy -d:harfbuzzyStatic \
+          -d:harfbuzzyDynlib=figdraw-missing-harfbuzz \
+          -d:harfbuzzySubsetDynlib=figdraw-missing-subset \
+          -d:harfbuzzyFribidiDynlib=figdraw-missing-fribidi \
+          tests/tfontutils.nim
+
     - name: Build Tests
       if: runner.os == 'Windows'
       env:

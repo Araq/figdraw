@@ -13,6 +13,18 @@ import ./pixie_raster
 
 const hbHeader = "hb.h"
 
+when declared(hbraw.hbStaticEnabled):
+  const useStaticHarfBuzz = hbraw.hbStaticEnabled
+else:
+  when defined(harfbuzzyStatic) or defined(features.harfbuzzy.static):
+    {.error: "Static glyph rasterization requires Harfbuzzy static-build support".}
+  const useStaticHarfBuzz = false
+
+when useStaticHarfBuzz:
+  {.pragma: hbDrawImport, header: hbHeader.}
+else:
+  {.pragma: hbDrawImport, dynlib: hbraw.hbLib.}
+
 type
   HbDrawFuncsObj {.importc: "hb_draw_funcs_t", header: hbHeader, incompleteStruct.} = object
 
@@ -79,55 +91,55 @@ var hbFontCache {.threadvar.}: Table[FontId, HbFontHandles]
 var harfbuzzVersionChecked {.threadvar.}: bool
 
 proc hb_draw_funcs_create(): HbDrawFuncs {.
-  cdecl, importc: "hb_draw_funcs_create", dynlib: hbraw.hbLib
+  cdecl, importc: "hb_draw_funcs_create", hbDrawImport
 .}
 
 proc hb_draw_funcs_destroy(
   funcs: HbDrawFuncs
-) {.cdecl, importc: "hb_draw_funcs_destroy", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_destroy", hbDrawImport.}
 
 proc hb_draw_funcs_make_immutable(
   funcs: HbDrawFuncs
-) {.cdecl, importc: "hb_draw_funcs_make_immutable", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_make_immutable", hbDrawImport.}
 
 proc hb_draw_funcs_set_move_to_func(
   funcs: HbDrawFuncs,
   callback: HbDrawMoveToFunc,
   userData: pointer,
   destroy: hbraw.HbDestroyFunc,
-) {.cdecl, importc: "hb_draw_funcs_set_move_to_func", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_set_move_to_func", hbDrawImport.}
 
 proc hb_draw_funcs_set_line_to_func(
   funcs: HbDrawFuncs,
   callback: HbDrawLineToFunc,
   userData: pointer,
   destroy: hbraw.HbDestroyFunc,
-) {.cdecl, importc: "hb_draw_funcs_set_line_to_func", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_set_line_to_func", hbDrawImport.}
 
 proc hb_draw_funcs_set_quadratic_to_func(
   funcs: HbDrawFuncs,
   callback: HbDrawQuadraticToFunc,
   userData: pointer,
   destroy: hbraw.HbDestroyFunc,
-) {.cdecl, importc: "hb_draw_funcs_set_quadratic_to_func", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_set_quadratic_to_func", hbDrawImport.}
 
 proc hb_draw_funcs_set_cubic_to_func(
   funcs: HbDrawFuncs,
   callback: HbDrawCubicToFunc,
   userData: pointer,
   destroy: hbraw.HbDestroyFunc,
-) {.cdecl, importc: "hb_draw_funcs_set_cubic_to_func", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_set_cubic_to_func", hbDrawImport.}
 
 proc hb_draw_funcs_set_close_path_func(
   funcs: HbDrawFuncs,
   callback: HbDrawClosePathFunc,
   userData: pointer,
   destroy: hbraw.HbDestroyFunc,
-) {.cdecl, importc: "hb_draw_funcs_set_close_path_func", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_draw_funcs_set_close_path_func", hbDrawImport.}
 
 proc hb_font_draw_glyph(
   font: hbraw.HbFont, glyph: hbraw.HbCodepoint, funcs: HbDrawFuncs, drawData: pointer
-) {.cdecl, importc: "hb_font_draw_glyph", dynlib: hbraw.hbLib.}
+) {.cdecl, importc: "hb_font_draw_glyph", hbDrawImport.}
 
 proc hbTag(tag: string): hbraw.HbTag =
   if tag.len == 0 or tag.len > 4:

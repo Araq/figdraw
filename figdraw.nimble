@@ -1,4 +1,4 @@
-version = "0.44.0"
+version = "0.45.0"
 author = "Jaremy Creechley"
 description = "UI Engine for Nim"
 license = "MIT"
@@ -27,7 +27,7 @@ when defined(linux) or defined(bsd) or defined(windows):
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 
 feature "harfbuzz":
-  requires "gh:elcritch/harfbuzzy >= 0.2.4"
+  requires "gh:elcritch/harfbuzzy >= 0.3.0"
 feature "textBackendHarfbuzzy":
   discard
 feature "lottie":
@@ -36,6 +36,8 @@ feature "sdl2":
   requires "sdl2"
 feature "windy":
   requires "windy"
+  # Typed query iterators avoid ambiguous converter overloads on Nim devel.
+  requires "gh:elcritch/urlly#61cacc8436a377151b6ebdc66e112d4adbce05c6"
 feature "surfer":
   requires "surfer >= 0.2.5"
   requires "xkb#b4d50f4cccad1cd9e39d2f5a5e1fef2710edcc31"
