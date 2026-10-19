@@ -324,17 +324,6 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         brew install cmake meson ninja
-        python3 - <<'PY'
-        from pathlib import Path
-        manifest = Path('figdraw.nimble')
-        source = manifest.read_text()
-        requirement = 'gh:elcritch/harfbuzzy >= 0.2.4'
-        assert requirement in source
-        manifest.write_text(source.replace(requirement,
-          'gh:elcritch/harfbuzzy#7b09d58ddd2c8ef5eb9f0e58aeba2a190c1cc0f3'))
-        PY
-        atlas update -k harfbuzzy
-        atlas install -k
         nim c -r -d:figdrawTextBackend=harfbuzzy -d:harfbuzzyStatic \
           -d:harfbuzzyDynlib=figdraw-missing-harfbuzz \
           -d:harfbuzzySubsetDynlib=figdraw-missing-subset \
