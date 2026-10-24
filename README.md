@@ -107,7 +107,7 @@ The most stable entry points today are:
 - Scene graph nodes: `import figdraw/fignodes`
 - OpenGL backend: `import figdraw/figrender`
 
-### Experimental software rendering with uirelays
+### Experimental software rendering with uirelays or Siwin
 
 The software backend renders ordinary FigDraw scenes into Pixie images using
 sdfy. It supports elliptical rounded corners, two- and three-stop gradients,
@@ -120,15 +120,40 @@ rows through sdfy's span API. SSE2/NEON accelerate affine coordinates, circular
 or elliptical distances, solid and two-/three-stop/four-corner gradients,
 coverage, mask multiplication, and premultiplied blending. Backdrop-blur
 boundaries use distance packets with FigDraw's image sampler. Partial batches
-and unsupported CPUs use scalar code. `-d:figdrawNoSimd` forces the scalar
+and unsupported CPUs use scalar code. `-d:figdraw.sdfySimd=off` forces the scalar
 software path for comparison; `-d:sdfyNoSimd` also disables sdfy's SIMD paths.
 No temporary shape image or additional resampling is needed.
+
+Sigils worker pools are internal and automatic. `newSoftwareContext()`,
+`newUirelaysContext()`, and `newUirelaysRenderer()` lazily use up to four workers
+for large rounded draws. No scheduler setup or shutdown is required. Contexts
+with the same worker count share a runtime pool, which stops at process exit.
+Use `workers = 1` to force inline rendering, or `workers = 4` to request an
+explicit count (the default `workers = 0` selects up to four available CPUs).
+
+Rounded draws covering at least 262,144 framebuffer pixels dispatch disjoint
+row tiles to separate Sigils actors. `parallelThreshold` adjusts that cutoff;
+small draws stay inline. Every draw waits for all its tiles, preserving layering,
+mask nesting, resize safety, and synchronous capture/presentation. Windows,
+scene traversal, font caches, and image ownership stay on the calling thread.
+Workers receive immutable value parameters and borrowed pixel-buffer pointers,
+and worker failures are reported after all submitted tiles finish.
+
+`-d:figdraw.threadedSdfy=off` compiles out worker dispatch while retaining SIMD.
+`-d:figdraw.sdfySimd=off` disables sdfy SIMD while retaining worker dispatch.
+Both options can be disabled together. Run
+`nim r -d:release tests/bench_software_workers.nim` and repeat with
+`-d:figdraw.sdfySimd=off` to compare all four configurations.
 
 ```sh
 atlas install --keepFeatures --feature=figdraw.uirelays
 
 # Capture a scene without opening a window:
 nim r examples/software_capture.nim
+
+# Use Siwin's native software window, without uirelays or GPU presentation:
+atlas install --keepFeatures --feature=figdraw.siwin --feature=figdraw.harfbuzz
+nim r examples/siwin_software.nim
 
 # Use a native uirelays window:
 nim r examples/uirelays_renderlist.nim
@@ -153,6 +178,18 @@ For an offscreen renderer, pass `newSoftwareContext()` to `newFigRenderer`.
 `takeOneFrameScreenshot()` returns an independent Pixie image. A custom
 `FramePresenter` callback can deliver finished images to an application-owned
 window or another image consumer.
+
+For an existing Siwin software window, import `figdraw/software/siwin` and call
+`newSiwinSoftwareRenderer(window)` or `newSiwinSoftwareContext(window)`. Create
+the window with Siwin's `newSoftwareRenderingWindow`. Inside `onRender`, call
+`configureSiwinSoftwareScale(window)` before layout and pass its logical frame
+size to `renderFrame`. The presenter reacquires the native buffer each frame,
+copies at backing resolution without resampling, and converts RGBA/BGRA formats.
+Pixie composites over the background for opaque windows; transparent buffers
+retain premultiplied alpha. The adapter uses the same automatic worker pool and
+sdfy SIMD paths as uirelays. It creates no GPU context or texture upload and does
+not require the uirelays feature. See `examples/siwin_software.nim` for events and
+shutdown, including releasing event closures before closing the window.
 
 Applications using siwin or Windy directly can keep an existing window renderer
 as a dedicated image presenter. Import `figdraw/software/windowing`, then call

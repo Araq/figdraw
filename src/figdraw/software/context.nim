@@ -11,6 +11,9 @@ import pkg/sdfy/spans except distances
 from pkg/sdfy/sdfytypes import MsdfBitmapParams
 import ../[commons, figbackend, fignodes]
 import ./distances
+import ./raster
+
+export ThreadedSdfyEnabled
 
 type
   FramePresenter* = proc(image: Image) {.closure.}
@@ -26,16 +29,12 @@ type
     metadata: Table[Hash, AtlasEntryMeta]
     pixelScaleValue, aaFactor: float32
     presenter: FramePresenter
+    rasterWorkers: RasterWorkers
 
   PixelSampler = proc(p: Vec2, aaWidth: float32): ColorRGBX {.closure.}
   PixelBatchSampler =
     proc(points: array[4, Vec2], aaWidth: float32): array[4, ColorRGBX] {.closure.}
-  PixelRowRenderer = proc(
-    destination: var openArray[ColorRGBX],
-    coordinates: SpanCoordinates,
-    aaWidth: float32,
-    mask: openArray[ColorRGBX],
-  ) {.closure.}
+  SdfyRasterFactory = proc(inverse: Mat3, aaWidth: float32): SdfyRaster {.closure.}
 
 func coverage(distance, aaWidth: float32): float32 =
   clamp(0.5'f32 - distance / max(aaWidth, 0.00001'f32), 0'f32, 1'f32)
@@ -133,7 +132,7 @@ proc rasterize(
     target: Image = nil,
     replace = false,
     sampleBatch: PixelBatchSampler = nil,
-    sampleRow: PixelRowRenderer = nil,
+    sampleRaster: SdfyRasterFactory = nil,
 ) =
   if ctx.backing.isNil or bounds.w <= 0 or bounds.h <= 0:
     return
@@ -168,41 +167,30 @@ proc rasterize(
     y1 = min(image.height, ceil(high.y).int)
   if x1 <= x0 or y1 <= y0:
     return
+  if not sampleRaster.isNil:
+    ctx.rasterWorkers.renderSdfy(
+      sampleRaster(inverse, aaWidth), image, ctx.mask, x0, y0, x1, y1
+    )
+    return
   for y in y0 ..< y1:
-    if not sampleRow.isNil:
-      let first = y * image.width + x0
-      let last = first + x1 - x0 - 1
-      let coordinates = initSpanCoordinates(
-        vec2(x0.float32 + 0.5'f32, y.float32 + 0.5'f32), transform = inverse
-      )
-      if ctx.mask.isNil:
-        sampleRow(image.data.toOpenArray(first, last), coordinates, aaWidth, [])
-      else:
-        sampleRow(
-          image.data.toOpenArray(first, last),
-          coordinates,
-          aaWidth,
-          ctx.mask.data.toOpenArray(first, last),
-        )
-    else:
-      var x = x0
-      when softwareSimdEnabled:
-        if not sampleBatch.isNil:
-          while x + 4 <= x1:
-            var points: array[4, Vec2]
-            for lane in 0 ..< 4:
-              points[lane] =
-                inverse * vec2((x + lane).float32 + 0.5'f32, y.float32 + 0.5'f32)
-            let pixels = sampleBatch(points, aaWidth)
-            for lane in 0 ..< 4:
-              if bounds.contains(points[lane]):
-                ctx.composite(image, x + lane, y, pixels[lane], replace)
-            x += 4
-      while x < x1:
-        let p = inverse * vec2(x.float32 + 0.5'f32, y.float32 + 0.5'f32)
-        if bounds.contains(p):
-          ctx.composite(image, x, y, sample(p, aaWidth), replace)
-        inc x
+    var x = x0
+    when softwareSimdEnabled:
+      if not sampleBatch.isNil:
+        while x + 4 <= x1:
+          var points: array[4, Vec2]
+          for lane in 0 ..< 4:
+            points[lane] =
+              inverse * vec2((x + lane).float32 + 0.5'f32, y.float32 + 0.5'f32)
+          let pixels = sampleBatch(points, aaWidth)
+          for lane in 0 ..< 4:
+            if bounds.contains(points[lane]):
+              ctx.composite(image, x + lane, y, pixels[lane], replace)
+          x += 4
+    while x < x1:
+      let p = inverse * vec2(x.float32 + 0.5'f32, y.float32 + 0.5'f32)
+      if bounds.contains(p):
+        ctx.composite(image, x, y, sample(p, aaWidth), replace)
+      inc x
 
 method kind*(ctx: SoftwareContext): RendererBackendKind =
   rbSoftware
@@ -355,9 +343,15 @@ method readPixels*(ctx: SoftwareContext, frame: Rect, readFront: bool): Image =
   ctx.backing.subImage(x, y, right - x, bottom - y)
 
 proc newSoftwareContext*(
-    pixelScale = 1'f32, presenter: FramePresenter = nil
+    pixelScale = 1'f32,
+    presenter: FramePresenter = nil,
+    workers: Natural = 0,
+    parallelThreshold: Positive = 262_144,
 ): SoftwareContext =
   ## Creates a CPU renderer. An optional presenter receives each finished image.
+  ## Large rounded draws use an internal lazy Sigils pool and wait before returning.
+  ## workers=0 selects up to four CPUs; workers=1 forces inline rendering.
+  ## Small draws stay inline. Runtime pools are shared and stop at process exit.
   if pixelScale <= 0 or classify(pixelScale) in {fcNan, fcInf, fcNegInf}:
     raise newException(ValueError, "pixelScale must be finite and positive")
   result = SoftwareContext(
@@ -365,6 +359,7 @@ proc newSoftwareContext*(
     pixelScaleValue: pixelScale,
     aaFactor: DefaultSdfAaFactor,
     presenter: presenter,
+    rasterWorkers: initRasterWorkers(workers, parallelThreshold),
   )
   result.ensureImageMessageSubscription()
 
@@ -439,29 +434,21 @@ proc drawRounded(
     clip = initSpanClip(rect.xy, rect.xy + rect.wh)
   ctx.rasterize(
     rect,
-    sampleRow = proc(
-        destination: var openArray[ColorRGBX],
-        coordinates: SpanCoordinates,
-        aa: float32,
-        mask: openArray[ColorRGBX],
-    ) =
-      let effect = initSpanEffect(
-        spanMode,
-        aaWidth = aa,
-        strokeWidth = max(factor, 0'f32),
-        blurRadius = max(factor, 0'f32),
-        spread = spread,
-        insetOffset = shapeSize,
-      )
-      drawRoundedBoxSpan(
-        destination,
-        field,
-        coordinates,
-        paint,
-        effect,
-        clip,
-        mask = mask,
-        useSimd = softwareSimdEnabled,
+    sampleRaster = proc(inverse: Mat3, aa: float32): SdfyRaster =
+      SdfyRaster(
+        field: field,
+        paint: paint,
+        clip: clip,
+        transform: inverse,
+        useSimd: softwareSimdEnabled,
+        effect: initSpanEffect(
+          spanMode,
+          aaWidth = aa,
+          strokeWidth = max(factor, 0'f32),
+          blurRadius = max(factor, 0'f32),
+          spread = spread,
+          insetOffset = shapeSize,
+        ),
       ),
   )
 
@@ -504,21 +491,14 @@ method beginMask*(ctx: SoftwareContext, clipRect: Rect, radii: CornerRadii2D[flo
   ctx.rasterize(
     clipRect,
     target = mask,
-    sampleRow = proc(
-        destination: var openArray[ColorRGBX],
-        coordinates: SpanCoordinates,
-        aa: float32,
-        parentMask: openArray[ColorRGBX],
-    ) =
-      drawRoundedBoxSpan(
-        destination,
-        field,
-        coordinates,
-        paint,
-        initSpanEffect(aaWidth = aa),
-        clip,
-        mask = parentMask,
-        useSimd = softwareSimdEnabled,
+    sampleRaster = proc(inverse: Mat3, aa: float32): SdfyRaster =
+      SdfyRaster(
+        field: field,
+        paint: paint,
+        clip: clip,
+        transform: inverse,
+        effect: initSpanEffect(aaWidth = aa),
+        useSimd: softwareSimdEnabled,
       ),
   )
   ctx.masks.add(ctx.mask)

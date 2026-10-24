@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Present directly to Siwin software-window pixel buffers with backing-scale
+  layout, resize-safe buffer acquisition, RGBA/BGRA conversion, and Pixie
+  composition for opaque windows. Add a Harfbuzzy-default `siwin_software`
+  example sharing sdfy SIMD and automatic workers without uirelays or a GPU
+  presentation context.
+- Use automatic internal Sigils worker pools for large software rounded
+  draws and masks, with disjoint row tiles and a barrier after each draw.
+  Add `figdraw.threadedSdfy` and `figdraw.sdfySimd` boolean build options;
+  software renderers lazily use up to four workers without application setup.
 - Use sdfy's borrowed span API for software rounded fills, strokes, shadows,
   and masks. Vectorize gradients, affine coordinates, coverage, mask
   multiplication, and premultiplied blending in addition to distance fields.

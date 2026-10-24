@@ -332,6 +332,12 @@ jobs:
       run: |
         nim test
 
+    - name: Test software rendering build switches
+      if: runner.os == 'macOS'
+      run: |
+        nim r -d:figdraw.threadedSdfy=off tests/tsoftware_workers.nim
+        nim r -d:figdraw.sdfySimd=off tests/tsoftware_workers.nim
+
     - name: Test static HarfBuzz shaping and rasterization
       if: runner.os == 'macOS'
       run: |

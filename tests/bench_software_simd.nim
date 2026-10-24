@@ -1,5 +1,5 @@
 ## nim r -d:release tests/bench_software_simd.nim
-## nim r -d:release -d:figdrawNoSimd tests/bench_software_simd.nim
+## nim r -d:release -d:figdraw.sdfySimd=off tests/bench_software_simd.nim
 import std/[monotimes, strformat, times]
 import pkg/chroma
 import figdraw/[figbackend, fignodes]

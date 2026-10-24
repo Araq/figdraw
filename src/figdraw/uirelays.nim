@@ -65,25 +65,34 @@ proc configureUirelaysScale*(layout: relayScreen.ScreenLayout): Vec2 =
   setFigUiScale(density * uiScale)
   vec2(layout.width.float32, layout.height.float32) / uiScale
 
-proc newUirelaysContext*(background = rgba(255, 255, 255, 255)): SoftwareContext =
+proc newUirelaysContext*(
+    background = rgba(255, 255, 255, 255),
+    workers: Natural = 0,
+    parallelThreshold: Positive = 262_144,
+): SoftwareContext =
   ## Creates a software context which blits at endFrame. Initialize a uirelays
   ## window before the first frame. A rejected blit raises ValueError.
   if background.a != 255:
     raise newException(ValueError, "Presentation background must be opaque")
   newSoftwareContext(
+    workers = workers,
+    parallelThreshold = parallelThreshold,
     presenter = proc(image: Image) =
       let layout = relayScreen.getWindowLayout()
       if not presentUirelaysImage(
         image, background, width = layout.width, height = layout.height
       ):
         raise newException(ValueError, "The uirelays driver cannot present RGBA pixels")
+    ,
   )
 
 proc newUirelaysRenderer*(
-    background = rgba(255, 255, 255, 255)
+    background = rgba(255, 255, 255, 255),
+    workers: Natural = 0,
+    parallelThreshold: Positive = 262_144,
 ): FigRenderer[NoRendererBackendState] =
   ## Uses the normal FigDraw scene/glyph APIs and presents via uirelays.
   let layout = relayScreen.getWindowLayout()
   if layout.width > 0 and layout.height > 0:
     discard configureUirelaysScale(layout)
-  newFigRenderer(newUirelaysContext(background))
+  newFigRenderer(newUirelaysContext(background, workers, parallelThreshold))

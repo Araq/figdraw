@@ -4,7 +4,8 @@ import pkg/sdfy/spans
 
 export RoundedBoxField, distance
 
-const softwareSimdEnabled* = spanSimdEnabled and not defined(figdrawNoSimd)
+const WantSdfySimd* {.booldefine: "figdraw.sdfySimd".} = true
+const softwareSimdEnabled* = spanSimdEnabled and WantSdfySimd
 
 proc roundedBoxField*(halfSize: Vec2, rx, ry: Vec4): RoundedBoxField =
   initRoundedBoxField(halfSize, rx, ry)
