@@ -170,8 +170,8 @@ nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
 ```
 
 This feature requires released [sdfy 0.8.5](https://github.com/elcritch/sdfy/tree/v0.8.5)
-and tracks the uirelays changes in
-[PR #62](https://github.com/nim-lang/uirelays/pull/62) for full-resolution image
+and tracks upstream uirelays `master`, including merged
+[PR #62](https://github.com/nim-lang/uirelays/pull/62), for full-resolution image
 presentation and preservation of Cocoa content during live resizing.
 
 For an offscreen renderer, pass `newSoftwareContext()` to `newFigRenderer`.

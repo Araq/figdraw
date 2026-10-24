@@ -1,7 +1,8 @@
 # Changes
 
-## Unreleased
+## 0.46.0
 
+- Track upstream uirelays `master` after the HiDPI and resize fixes merged.
 - Present directly to Siwin software-window pixel buffers with backing-scale
   layout, resize-safe buffer acquisition, RGBA/BGRA conversion, and Pixie
   composition for opaque windows. Add a Harfbuzzy-default `siwin_software`
