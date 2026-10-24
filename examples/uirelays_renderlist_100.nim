@@ -2,7 +2,9 @@
 ## nim r examples/uirelays_renderlist_100.nim
 ## Animated stress scene with 10 copies by default, using sdfy software rendering.
 ## -d:figdraw.nodes=N adjusts copies; -d:figdraw.runOnce runs one frame.
-## Corners stay fixed by default; -d:figdraw.animateCorners=on animates them.
+## Only positions animate by default. -d:figdraw.animateShapes=on animates sizes
+## and shadows; -d:figdraw.animateCorners=on animates corners independently.
+## -d:figdraw.imageCacheMiB=N sets the raster cache budget (default 128 MiB).
 import std/[os, monotimes, times, strformat]
 
 import figdraw
@@ -15,6 +17,8 @@ import ./renderlist_100_common
 const
   Copies {.intdefine: "figdraw.nodes".} = 10
   AnimateCorners {.booldefine: "figdraw.animateCorners".} = false
+  AnimateShapes {.booldefine: "figdraw.animateShapes".} = false
+  CacheMiB {.intdefine: "figdraw.imageCacheMiB".} = 128
   RunOnce {.booldefine: "figdraw.runOnce".} = false
   NoSleep {.booldefine: "figdraw.noSleep".} = true
 
@@ -25,7 +29,8 @@ proc runUirelaysRenderlist100*(windowTitle = "FigDraw uirelays") =
     relayInput.shutdown()
   discard relayScreen.createWindow(800, 600)
   relayScreen.setWindowTitle(&"{windowTitle} / RenderList {Copies}")
-  let renderer = newUirelaysRenderer()
+  let renderer = newUirelaysRenderer(maxCacheBytes = CacheMiB * 1024 * 1024)
+  let imageContext = ImageLayerContext(renderer.ctx)
   let font = FigFont(typefaceId: loadTypeface("Ubuntu.ttf"), size: 18)
   let runOnce = RunOnce or getEnv("FIGDRAW_RUN_ONCE") == "1"
   var
@@ -39,6 +44,7 @@ proc runUirelaysRenderlist100*(windowTitle = "FigDraw uirelays") =
     fpsLayout: GlyphArrangement
     treeMs = 0.0
     renderMs = 0.0
+    cacheHits, cacheMisses = 0
 
   while running:
     var event: relayInput.Event
@@ -57,7 +63,15 @@ proc runUirelaysRenderlist100*(windowTitle = "FigDraw uirelays") =
         inc frame
         inc fpsFrames
         let treeStart = getMonoTime()
-        var nodes = makeRenderTree(size.x, size.y, frame, Copies, AnimateCorners)
+        var nodes = makeRenderTree(
+          size.x,
+          size.y,
+          frame,
+          Copies,
+          AnimateCorners,
+          AnimateShapes,
+          includeBackground = false,
+        )
         let elementCount = nodes[0.ZLevel].nodes.len
         let hud = rect(size.x - 192, 12, 180, 34)
         discard nodes.addRoot(
@@ -93,6 +107,9 @@ proc runUirelaysRenderlist100*(windowTitle = "FigDraw uirelays") =
 
         let renderStart = getMonoTime()
         renderer.renderFrame(nodes, size)
+        let cache = imageContext.imageCacheStats()
+        cacheHits += cache.hits
+        cacheMisses += cache.misses
         relayScreen.refresh()
         renderMs += (getMonoTime() - renderStart).inNanoseconds.float64 / 1e6
 
@@ -102,10 +119,13 @@ proc runUirelaysRenderlist100*(windowTitle = "FigDraw uirelays") =
           let fps = fpsFrames.float64 / elapsed
           fpsText = &"{fps:.1f} FPS"
           echo &"fps: {fps:.1f} | elems: {elementCount} | makeRenderTree avg(ms): {treeMs / fpsFrames.float64:.3f} | renderFrame + present avg(ms): {renderMs / fpsFrames.float64:.3f}"
+          echo &"image cache: {cacheHits} hits / {cacheMisses} misses | {cache.entries} images / {cache.bytes.float64 / (1024 * 1024):.1f} MiB | native rects: {cache.nativeRects}"
           fpsFrames = 0
           fpsStart = now
           treeMs = 0
           renderMs = 0
+          cacheHits = 0
+          cacheMisses = 0
         if runOnce:
           running = false
       when not NoSleep:

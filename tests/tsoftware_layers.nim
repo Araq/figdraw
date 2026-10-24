@@ -1,7 +1,8 @@
 import std/[hashes, unittest, importutils]
 import pkg/[pixie, chroma, vmath]
-import figdraw/[figbackend, fignodes]
+import figdraw/[commons, figbackend, fignodes, figrender]
 import figdraw/software/[context, layers]
+import ../examples/renderlist_100_common
 
 type ComposedFrame = ref object
   image: Image
@@ -42,6 +43,50 @@ proc radii(): CornerRadii2D[float32] =
   result.y = [3'f32, 4, 6, 8]
 
 suite "cached software image layers":
+  test "translation-only Retina renderlist reuses all cached image layers":
+    let oldScale = figUiScale()
+    defer:
+      setFigUiScale(oldScale)
+    setFigUiScale(2)
+    let compositor = ImageComposer(
+      coordinateScale: 2,
+      packedPixels: true,
+      beginFrame: proc(size: Vec2, clear: bool, fill: Color) =
+        discard,
+      drawImage: proc(layer: LayerImage, bounds: Rect) =
+        discard,
+    )
+    let ctx = newImageLayerContext(compositor, maxCacheBytes = 128 * 1024 * 1024)
+    let renderer = newFigRenderer(ctx)
+    for size in [vec2(800, 600), vec2(1728, 1117), vec2(3000, 2000)]:
+      # Resizing can create new edge-cropped rasters, then motion must reuse
+      # them even when a window-sized image would exceed the entire cache.
+      for frame in [1, 2, 40, 100, 300]:
+        var scene = makeRenderTree(
+          size.x, size.y, frame, 10, false, false, includeBackground = false
+        )
+        renderer.renderFrame(scene, size)
+        let stats = ctx.imageCacheStats()
+        check stats.bytes <= 128 * 1024 * 1024
+        if frame != 1:
+          check stats.misses == 0
+          check stats.hits > 0
+
+  test "an oversized image does not evict reusable images it cannot replace":
+    let frame = ComposedFrame()
+    let ctx = frame.newContext(native = true, maxCacheBytes = 512)
+    ctx.begin()
+    ctx.drawRect(rect(4, 5, 8, 8), color(1, 0, 0, 1))
+    let cached = frame.layers[0]
+    ctx.drawRect(rect(0, 0, 64, 64), color(0, 0, 1, 1))
+    check ctx.imageCacheStats().entries == 1
+    check ctx.imageCacheStats().bytes == 256
+    ctx.begin()
+    ctx.drawRect(rect(4, 5, 8, 8), color(1, 0, 0, 1))
+    check frame.layers[0] == cached
+    check ctx.imageCacheStats().hits == 1
+    check ctx.imageCacheStats().misses == 0
+
   test "capture references do not retain rasters evicted by the cache budget":
     let frame = ComposedFrame()
     let ctx = frame.newContext(native = true, maxCacheBytes = 512)

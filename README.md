@@ -126,6 +126,15 @@ Window adapters cache bounded shape/glyph images, reusing them across redraws
 and integer-position changes. The cache holds up to 64 MiB of image data.
 Uirelays composes these individual alpha images through its native driver;
 pure software Siwin uses Pixie only for final image composition.
+Solid square fills use uirelays' native `fillRect` when their transformed edges
+align with driver coordinates. Gradients, rounded shapes, masked or fractional
+placements, and effects retain the raster image path. Native fills allocate
+no FigDraw image and still appear in explicit screenshots.
+Pass `maxCacheBytes` to `newUirelaysContext` or `newUirelaysRenderer` when the
+visible images need a larger cache, especially at high display density.
+`ImageLayerContext.imageCacheStats()` reports the current frame's hits/misses
+and retained bytes/entries.
+Oversized images bypass the cache without evicting images they cannot replace.
 
 Explicit native uirelays screenshots compose the current frame's cached images
 on demand. They require a cleared frame that fits the image cache; capture
@@ -170,8 +179,12 @@ nim r examples/uirelays_renderlist_100.nim  # same stress options as the siwin l
 # Use Siwin windows with native uirelays composition:
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.siwin --feature=figdraw.harfbuzz
 nim r examples/siwin_uirelays.nim  # siwin + Harfbuzzy by default
-nim r examples/siwin_uirelays_renderlist_100.nim  # 10 copies, fixed corner radii
-# Add -d:figdraw.animateCorners=on to animate the corners too.
+nim r examples/siwin_uirelays_renderlist_100.nim  # 10 copies, only positions animate
+# Both renderlist_100 launchers default to fixed sizes, corners, and shadows,
+# integer-coordinate movement, and a 128 MiB image cache. They print cache stats.
+# -d:figdraw.animateShapes=on animates sizes and shadow parameters.
+# -d:figdraw.animateCorners=on animates corners independently.
+# -d:figdraw.imageCacheMiB=N changes the cache budget for larger scenes.
 
 # Optional GPU presentation through Windy:
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.windy

@@ -5,21 +5,28 @@ import figdraw
 const copies {.intdefine: "figdraw.nodes".} = 100
 
 proc makeRenderTree*(
-    w, h: float32, frame: int, copyCount: int = copies, animateCorners = true
+    w, h: float32,
+    frame: int,
+    copyCount: int = copies,
+    animateCorners = true,
+    animateShapes = true,
+    includeBackground = true,
 ): Renders =
   var list = RenderList()
   let t = frame.float32 * 0.02'f32
   let cornerT = if animateCorners: t else: 0'f32
+  let shapeT = if animateShapes: t else: 0'f32
 
-  discard list.addRoot(
-    Fig(
-      kind: nkRectangle,
-      childCount: 0,
-      zlevel: 0.ZLevel,
-      screenBox: rect(0, 0, w, h),
-      fill: rgba(255, 255, 255, 155),
+  if includeBackground:
+    discard list.addRoot(
+      Fig(
+        kind: nkRectangle,
+        childCount: 0,
+        zlevel: 0.ZLevel,
+        screenBox: rect(0, 0, w, h),
+        fill: rgba(255, 255, 255, 155),
+      )
     )
-  )
 
   let redStartX = 60.0'f32
   let redStartY = 60.0'f32
@@ -30,8 +37,11 @@ proc makeRenderTree*(
 
   let maxW = 260.0'f32
   let maxH = 180.0'f32
-  let maxX = max(0.0'f32, w - (greenStartX + maxW))
-  let maxY = max(0.0'f32, h - (blueStartY + maxH))
+  # Keep fixed images and their shadows inside the window so changing edge
+  # cropping does not invalidate the translation-only scene's cached rasters.
+  let shadowMargin = if animateShapes: 0'f32 else: 80'f32
+  let maxX = max(0.0'f32, w - (greenStartX + maxW + shadowMargin))
+  let maxY = max(0.0'f32, h - (blueStartY + maxH + shadowMargin))
   #var rng = initRand((w.int shl 16) xor h.int xor 12345)
   var rng = initRand(12345)
 
@@ -44,9 +54,9 @@ proc makeRenderTree*(
     let offsetY = min(max(baseY + jitterY, 0.0'f32), maxY)
 
     let sizePulseW =
-      0.5'f32 + 0.5'f32 * sin((t * 0.8'f32 + i.float32 * 0.07'f32).float64).float32
+      0.5'f32 + 0.5'f32 * sin((shapeT * 0.8'f32 + i.float32 * 0.07'f32).float64).float32
     let sizePulseH =
-      0.5'f32 + 0.5'f32 * cos((t * 0.65'f32 + i.float32 * 0.09'f32).float64).float32
+      0.5'f32 + 0.5'f32 * cos((shapeT * 0.65'f32 + i.float32 * 0.09'f32).float64).float32
 
     let redW = 160.0'f32 + 100.0'f32 * sizePulseW
     let redH = 110.0'f32 + 70.0'f32 * sizePulseH
@@ -92,19 +102,21 @@ proc makeRenderTree*(
       )
 
     let shadowPulse =
-      0.5'f32 + 0.5'f32 * sin((t * 1.1'f32 + i.float32 * 0.05'f32).float64).float32
+      0.5'f32 + 0.5'f32 * sin((shapeT * 1.1'f32 + i.float32 * 0.05'f32).float64).float32
     let shadowBlur = max(0.0'f32, 6.0'f32 + 18.0'f32 * shadowPulse)
     let shadowSpread = max(0.0'f32, 4.0'f32 + 20.0'f32 * (1.0'f32 - shadowPulse))
     let shadowX =
-      6.0'f32 + 10.0'f32 * sin((t * 0.9'f32 + i.float32 * 0.03'f32).float64).float32
+      6.0'f32 + 10.0'f32 * sin((shapeT * 0.9'f32 + i.float32 * 0.03'f32).float64).float32
     let shadowY =
-      6.0'f32 + 10.0'f32 * cos((t * 0.9'f32 + i.float32 * 0.03'f32).float64).float32
+      6.0'f32 + 10.0'f32 * cos((shapeT * 0.9'f32 + i.float32 * 0.03'f32).float64).float32
     let insetPulse =
-      0.5'f32 + 0.5'f32 * sin((t * 1.05'f32 + i.float32 * 0.06'f32).float64).float32
+      0.5'f32 + 0.5'f32 * sin((shapeT * 1.05'f32 + i.float32 * 0.06'f32).float64).float32
     let insetBlur = max(0.0'f32, 8.0'f32 + 10.0'f32 * insetPulse)
     let insetSpread = max(0.0'f32, 2.0'f32 + 10.0'f32 * (1.0'f32 - insetPulse))
-    let insetX = 6.0'f32 * sin((t * 0.85'f32 + i.float32 * 0.04'f32).float64).float32
-    let insetY = 6.0'f32 * cos((t * 0.8'f32 + i.float32 * 0.04'f32).float64).float32
+    let insetX =
+      6.0'f32 * sin((shapeT * 0.85'f32 + i.float32 * 0.04'f32).float64).float32
+    let insetY =
+      6.0'f32 * cos((shapeT * 0.8'f32 + i.float32 * 0.04'f32).float64).float32
     let useGreenGradient = (i mod 2) == 0
     let useBlueGradient = (i mod 3) == 0
 
@@ -259,6 +271,19 @@ proc makeRenderTree*(
       stroke: RenderStroke(weight: 6.0, fill: rgba(95, 72, 0, 185).color),
     )
   )
+
+  if not animateShapes:
+    # Native relays place images at integer coordinates. Keep raster coverage
+    # fixed as those images move, including the shadow origin within each image.
+    for node in list.nodes.mitems:
+      node.screenBox.x = round(node.screenBox.x)
+      node.screenBox.y = round(node.screenBox.y)
+      node.screenBox.w = round(node.screenBox.w)
+      node.screenBox.h = round(node.screenBox.h)
+      if node.kind == nkRectangle:
+        for shadow in node.shadows.mitems:
+          shadow.x = round(shadow.x)
+          shadow.y = round(shadow.y)
 
   result = newRenders()
   result.setLayer(0.ZLevel, list)

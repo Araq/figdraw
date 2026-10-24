@@ -75,9 +75,12 @@ proc newUirelaysContext*(
     background = rgba(255, 255, 255, 255),
     workers: Natural = 0,
     parallelThreshold: Positive = 262_144,
+    maxCacheBytes: Positive = 64 * 1024 * 1024,
 ): ImageLayerContext =
   ## Rasterizes bounded, cached shape/glyph images with sdfy. The installed
   ## driver composes those images with premultiplied alpha in draw order.
+  ## `maxCacheBytes` bounds raster and packed image storage; size it to retain
+  ## the visible working set when reusing large images at high display density.
   if background.a != 255:
     raise newException(ValueError, "Presentation background must be opaque")
   let composer = ImageComposer(
@@ -112,18 +115,32 @@ proc newUirelaysContext*(
         raise
           newException(ValueError, "The uirelays driver cannot compose alpha images")
     ,
+    fillRect: proc(bounds: Rect, fill: ColorRGBA): bool =
+      if relayScreen.drawRelays.fillRect.isNil:
+        return false
+      relayScreen.fillRect(
+        relayCoords.rect(bounds.x.int, bounds.y.int, bounds.w.int, bounds.h.int),
+        relayScreen.color(fill.r, fill.g, fill.b, fill.a),
+      )
+      true,
   )
   newImageLayerContext(
-    composer, workers = workers, parallelThreshold = parallelThreshold
+    composer,
+    workers = workers,
+    parallelThreshold = parallelThreshold,
+    maxCacheBytes = maxCacheBytes,
   )
 
 proc newUirelaysRenderer*(
     background = rgba(255, 255, 255, 255),
     workers: Natural = 0,
     parallelThreshold: Positive = 262_144,
+    maxCacheBytes: Positive = 64 * 1024 * 1024,
 ): FigRenderer[NoRendererBackendState] =
   ## Uses the normal FigDraw scene/glyph APIs and presents via uirelays.
   let layout = relayScreen.getWindowLayout()
   if layout.width > 0 and layout.height > 0:
     discard configureUirelaysScale(layout)
-  newFigRenderer(newUirelaysContext(background, workers, parallelThreshold))
+  newFigRenderer(
+    newUirelaysContext(background, workers, parallelThreshold, maxCacheBytes)
+  )

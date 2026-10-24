@@ -8,6 +8,14 @@
   `siwin_uirelays_renderlist_100`, including fixed corners by default.
 - Block on Siwin events in the static pure software example instead of
   continuously redrawing an unchanged scene.
+- Make native renderlist stress examples move cached images by default; opt in
+  to size/shadow animation with `figdraw.animateShapes`. Use a configurable
+  128 MiB example cache, report hits/misses, and avoid copying cached pixel
+  buffers while choosing an eviction candidate.
+- Draw aligned solid square fills through uirelays' native rectangle relay,
+  retaining mixed native/image screenshot order. Remove the stress example's
+  redundant background image and keep oversized images from flushing its cache
+  after maximizing the window.
 - Fix software square Bézier caps, clamped MSDF/MTSDF edge sampling, and small
   fractional-scale uirelays frame sizes found during Astra review.
 - Redraw the static uirelays example only when invalidated and wait for events
