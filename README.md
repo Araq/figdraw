@@ -161,7 +161,8 @@ nim r examples/uirelays_renderlist.nim
 # Or use uirelays' siwin / Windy window driver:
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.siwin --feature=figdraw.harfbuzz
 nim r examples/siwin_uirelays.nim  # siwin + Harfbuzzy by default
-nim r examples/siwin_uirelays_renderlist_100.nim  # animated stress scene (10 copies by default)
+nim r examples/siwin_uirelays_renderlist_100.nim  # 10 copies, fixed corner radii
+# Add -d:figdraw.animateCorners=on to animate the corners too.
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.windy
 nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
 
@@ -175,8 +176,9 @@ blocks on window events while idle. The renderlist stress example animates
 continuously to measure rendering throughput.
 
 This feature requires released [sdfy 0.8.5](https://github.com/elcritch/sdfy/tree/v0.8.5)
-and tracks upstream uirelays `master`, including merged
-[PR #62](https://github.com/nim-lang/uirelays/pull/62), for full-resolution image
+and tracks uirelays' `feat/rgba-alpha` branch from the elcritch fork,
+including merged [PR #62](https://github.com/nim-lang/uirelays/pull/62) and
+[PR #63](https://github.com/nim-lang/uirelays/pull/63), for full-resolution image
 presentation and preservation of Cocoa content during live resizing.
 
 For an offscreen renderer, pass `newSoftwareContext()` to `newFigRenderer`.

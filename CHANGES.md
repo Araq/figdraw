@@ -4,7 +4,9 @@
 
 - Redraw the static uirelays example only when invalidated and wait for events
   while idle; keep the renderlist stress scene continuously animated.
-- Track upstream uirelays `master` after the HiDPI and resize fixes merged.
+- Track uirelays' `feat/rgba-alpha` branch for premultiplied-alpha drawing,
+  native blocking Siwin event waits, refresh notification suppression, and
+  reusable RGBA upload slots.
 - Present directly to Siwin software-window pixel buffers with backing-scale
   layout, resize-safe buffer acquisition, RGBA/BGRA conversion, and Pixie
   composition for opaque windows. Add a Harfbuzzy-default `siwin_software`

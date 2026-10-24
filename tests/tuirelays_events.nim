@@ -65,7 +65,10 @@ when defined(features.figdraw.uirelays):
     ): relayScreen.TextExtent =
       relayScreen.TextExtent()
     relayScreen.drawRelays.drawRGBA = proc(
-        pixels: ptr UncheckedArray[uint32], w, h: int, dst: relayCoords.Rect
+        pixels: ptr UncheckedArray[uint32],
+        w, h: int,
+        dst: relayCoords.Rect,
+        format: relayScreen.RGBAFormat,
     ): bool =
       true
     relayInput.inputRelays.pollEvent = poll

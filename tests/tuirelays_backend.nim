@@ -17,7 +17,10 @@ when defined(features.figdraw.uirelays):
     windowLayout
 
   proc recordBlit(
-      pixels: ptr UncheckedArray[uint32], w, h: int, dst: relayCoords.Rect
+      pixels: ptr UncheckedArray[uint32],
+      w, h: int,
+      dst: relayCoords.Rect,
+      format: relayScreen.RGBAFormat,
   ): bool =
     sourceWidth = w
     sourceHeight = h

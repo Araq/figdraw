@@ -46,7 +46,7 @@ feature "siwin":
   # Merged platform ABI fixes and X11 helpers: Siwin #56, #57, and #58.
   requires "gh:levovix0/siwin#78bb49c7fd7e5e14590f567e1ccbb07eb5ab6739"
 feature "uirelays":
-  requires "gh:nim-lang/uirelays#master"
+  requires "gh:elcritch/uirelays#feat/rgba-alpha"
 feature "vulkan":
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 feature "metal":

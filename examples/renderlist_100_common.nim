@@ -4,9 +4,12 @@ import figdraw
 
 const copies {.intdefine: "figdraw.nodes".} = 100
 
-proc makeRenderTree*(w, h: float32, frame: int, copyCount: int = copies): Renders =
+proc makeRenderTree*(
+    w, h: float32, frame: int, copyCount: int = copies, animateCorners = true
+): Renders =
   var list = RenderList()
   let t = frame.float32 * 0.02'f32
+  let cornerT = if animateCorners: t else: 0'f32
 
   discard list.addRoot(
     Fig(
@@ -53,30 +56,40 @@ proc makeRenderTree*(w, h: float32, frame: int, copyCount: int = copies): Render
     let blueH = 110.0'f32 + 70.0'f32 * (1.0'f32 - sizePulseH)
 
     let cornerPulse =
-      0.5'f32 + 0.5'f32 * sin((t * 1.25'f32 + i.float32 * 0.11'f32).float64).float32
+      0.5'f32 +
+      0.5'f32 * sin((cornerT * 1.25'f32 + i.float32 * 0.11'f32).float64).float32
     let c0 = 4.0'f32 + 26.0'f32 * cornerPulse
     let c1 = 6.0'f32 + 22.0'f32 * (1.0'f32 - cornerPulse)
     let c2 =
       8.0'f32 +
-      18.0'f32 *
-      (0.5'f32 + 0.5'f32 * sin((t * 0.7'f32 + i.float32 * 0.05'f32).float64).float32)
+      18.0'f32 * (
+        0.5'f32 +
+        0.5'f32 * sin((cornerT * 0.7'f32 + i.float32 * 0.05'f32).float64).float32
+      )
     let c3 =
       10.0'f32 +
-      16.0'f32 *
-      (0.5'f32 + 0.5'f32 * cos((t * 0.8'f32 + i.float32 * 0.06'f32).float64).float32)
+      16.0'f32 * (
+        0.5'f32 +
+        0.5'f32 * cos((cornerT * 0.8'f32 + i.float32 * 0.06'f32).float64).float32
+      )
 
     let greenCornerPulse =
-      0.5'f32 + 0.5'f32 * cos((t * 0.95'f32 + i.float32 * 0.08'f32).float64).float32
+      0.5'f32 +
+      0.5'f32 * cos((cornerT * 0.95'f32 + i.float32 * 0.08'f32).float64).float32
     let g0 = 6.0'f32 + 22.0'f32 * greenCornerPulse
     let g1 = 8.0'f32 + 18.0'f32 * (1.0'f32 - greenCornerPulse)
     let g2 =
       10.0'f32 +
-      16.0'f32 *
-      (0.5'f32 + 0.5'f32 * cos((t * 0.75'f32 + i.float32 * 0.04'f32).float64).float32)
+      16.0'f32 * (
+        0.5'f32 +
+        0.5'f32 * cos((cornerT * 0.75'f32 + i.float32 * 0.04'f32).float64).float32
+      )
     let g3 =
       12.0'f32 +
-      14.0'f32 *
-      (0.5'f32 + 0.5'f32 * sin((t * 0.85'f32 + i.float32 * 0.05'f32).float64).float32)
+      14.0'f32 * (
+        0.5'f32 +
+        0.5'f32 * sin((cornerT * 0.85'f32 + i.float32 * 0.05'f32).float64).float32
+      )
 
     let shadowPulse =
       0.5'f32 + 0.5'f32 * sin((t * 1.1'f32 + i.float32 * 0.05'f32).float64).float32
@@ -211,7 +224,7 @@ proc makeRenderTree*(w, h: float32, frame: int, copyCount: int = copies): Render
     yellowMargin +
     yellowTravelY * (0.5'f32 + 0.5'f32 * cos((t * 0.41'f32).float64).float32)
   let yellowCorner =
-    20.0'f32 + 12.0'f32 * (0.5'f32 + 0.5'f32 * sin((t * 0.7'f32).float64).float32)
+    20.0'f32 + 12.0'f32 * (0.5'f32 + 0.5'f32 * sin((cornerT * 0.7'f32).float64).float32)
 
   discard list.addRoot(
     Fig(

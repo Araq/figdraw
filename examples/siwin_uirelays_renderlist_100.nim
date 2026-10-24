@@ -2,6 +2,7 @@
 ## nim r examples/siwin_uirelays_renderlist_100.nim
 ## Animated stress scene with 10 copies by default, using sdfy software rendering.
 ## -d:figdraw.nodes=N adjusts copies; -d:figdraw.runOnce runs one frame.
+## Corners stay fixed by default; -d:figdraw.animateCorners=on animates them.
 import std/[os, monotimes, times, strformat]
 
 import figdraw
@@ -13,6 +14,7 @@ import ./renderlist_100_common
 
 const
   Copies {.intdefine: "figdraw.nodes".} = 10
+  AnimateCorners {.booldefine: "figdraw.animateCorners".} = false
   RunOnce {.booldefine: "figdraw.runOnce".} = false
   NoSleep {.booldefine: "figdraw.noSleep".} = true
 
@@ -55,7 +57,7 @@ proc main() =
         inc frame
         inc fpsFrames
         let treeStart = getMonoTime()
-        var nodes = makeRenderTree(size.x, size.y, frame, Copies)
+        var nodes = makeRenderTree(size.x, size.y, frame, Copies, AnimateCorners)
         let elementCount = nodes[0.ZLevel].nodes.len
         let hud = rect(size.x - 192, 12, 180, 34)
         discard nodes.addRoot(
