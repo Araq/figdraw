@@ -7,12 +7,16 @@
 - Render uirelays frames and glyphs at display backing resolution. Preserve
   Cocoa contents during live resize through the pinned uirelays fixes.
 - Add `siwin_uirelays.nim`, selecting siwin and Harfbuzzy by default.
-- Require released sdfy 0.8.4.
+- Batch rounded-shape distances using SSE2/NEON in software fills, strokes,
+  shadows, nested masks, and backdrop-blur boundaries. Prepare radii once per
+  draw and use the circular kernel where possible. Preserve affine sampling,
+  scalar tails, gradients, and premultiplied compositing.
+- Track sdfy's SIMD branch for the upcoming 0.8.5 release (sdfy PR #7).
 
 - Add an experimental sdfy software backend with elliptical corners, gradients,
   shadows, clipping, curves, distance images, and the existing glyph layout API.
 - Add optional uirelays presentation through its native, siwin, or Windy driver.
-  Use uirelays 0.11.0 and sdfy 0.8.4's elliptical-corner support.
+  Use uirelays 0.11.0 and sdfy's elliptical-corner support.
 
 ## 0.45.0
 

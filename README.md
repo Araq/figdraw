@@ -115,6 +115,14 @@ strokes, shadows, nested clips, affine transforms, curves, MSDF/MTSDF images,
 and backdrop blur. It keeps `typeset`, `placeGlyphs`, glyph IDs, selection
 geometry, font fallback, and image/font cache invalidation.
 
+Rounded fills, strokes, shadows, clip masks, and backdrop-blur boundaries
+evaluate four distances at a time using SSE2 or NEON. Circular corners use
+sdfy's dedicated circular kernel. Gradients and premultiplied compositing
+remain in FigDraw, so transformed shapes render directly into the framebuffer
+without a temporary shape image. Partial batches and unsupported CPUs use
+scalar distances; `-d:figdrawNoSimd` disables software distance batching for
+comparison, and `-d:sdfyNoSimd` also selects the scalar path.
+
 ```sh
 atlas install --keepFeatures --feature=figdraw.uirelays
 
@@ -135,7 +143,8 @@ nim r examples/software_window.nim
 nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
 ```
 
-This feature requires released sdfy 0.8.4 and pins the uirelays changes in
+This feature tracks the sdfy 0.8.5 SIMD work in
+[PR #7](https://github.com/elcritch/sdfy/pull/7) and the uirelays changes in
 [PR #62](https://github.com/nim-lang/uirelays/pull/62) for full-resolution image
 presentation and preservation of Cocoa content during live resizing.
 

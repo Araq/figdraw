@@ -9,6 +9,7 @@ import pkg/[chroma, pixie, vmath]
 import pkg/sdfy/shapes
 from pkg/sdfy/sdfytypes import MsdfBitmapParams
 import ../[commons, figbackend, fignodes]
+import ./distances
 
 type
   FramePresenter* = proc(image: Image) {.closure.}
@@ -26,6 +27,8 @@ type
     presenter: FramePresenter
 
   PixelSampler = proc(p: Vec2, aaWidth: float32): ColorRGBX {.closure.}
+  PixelBatchSampler =
+    proc(points: array[4, Vec2], aaWidth: float32): array[4, ColorRGBX] {.closure.}
 
 func coverage(distance, aaWidth: float32): float32 =
   clamp(0.5'f32 - distance / max(aaWidth, 0.00001'f32), 0'f32, 1'f32)
@@ -95,8 +98,26 @@ func sampleFill(fill: BackendFill, uv: Vec2): ColorRGBA =
 func cornerVector(radii: array[DirectionCorners, float32]): Vec4 =
   vec4(radii[dcBottomRight], radii[dcTopRight], radii[dcBottomLeft], radii[dcTopLeft])
 
-func roundedDistance(p, halfSize: Vec2, radii: CornerRadii2D[float32]): float32 =
-  sdEllipticalRoundedBox(p, halfSize, cornerVector(radii.x), cornerVector(radii.y))
+proc roundedField(halfSize: Vec2, radii: CornerRadii2D[float32]): RoundedBoxField =
+  roundedBoxField(halfSize, cornerVector(radii.x), cornerVector(radii.y))
+
+proc composite(
+    ctx: SoftwareContext, image: Image, x, y: int, src: ColorRGBX, replace: bool
+) {.inline.} =
+  let alpha =
+    if ctx.mask.isNil:
+      255'u8
+    else:
+      ctx.mask[x, y].a
+  image[x, y] =
+    if replace:
+      mixPixel(src, image[x, y], alpha)
+    else:
+      over(src, image[x, y], alpha)
+
+func contains(bounds: Rect, p: Vec2): bool {.inline.} =
+  p.x >= bounds.x and p.y >= bounds.y and p.x < bounds.x + bounds.w and
+    p.y < bounds.y + bounds.h
 
 proc rasterize(
     ctx: SoftwareContext,
@@ -104,6 +125,7 @@ proc rasterize(
     sample: PixelSampler,
     target: Image = nil,
     replace = false,
+    sampleBatch: PixelBatchSampler = nil,
 ) =
   if ctx.backing.isNil or bounds.w <= 0 or bounds.h <= 0:
     return
@@ -137,22 +159,24 @@ proc rasterize(
     x1 = min(image.width, ceil(high.x).int)
     y1 = min(image.height, ceil(high.y).int)
   for y in y0 ..< y1:
-    for x in x0 ..< x1:
+    var x = x0
+    when softwareSimdEnabled:
+      if not sampleBatch.isNil:
+        while x + 4 <= x1:
+          var points: array[4, Vec2]
+          for lane in 0 ..< 4:
+            points[lane] =
+              inverse * vec2((x + lane).float32 + 0.5'f32, y.float32 + 0.5'f32)
+          let pixels = sampleBatch(points, aaWidth)
+          for lane in 0 ..< 4:
+            if bounds.contains(points[lane]):
+              ctx.composite(image, x + lane, y, pixels[lane], replace)
+          x += 4
+    while x < x1:
       let p = inverse * vec2(x.float32 + 0.5'f32, y.float32 + 0.5'f32)
-      if p.x >= bounds.x and p.y >= bounds.y and p.x < bounds.x + bounds.w and
-          p.y < bounds.y + bounds.h:
-        let
-          src = sample(p, aaWidth)
-          alpha =
-            if ctx.mask.isNil:
-              255'u8
-            else:
-              ctx.mask[x, y].a
-        image[x, y] =
-          if replace:
-            mixPixel(src, image[x, y], alpha)
-          else:
-            over(src, image[x, y], alpha)
+      if bounds.contains(p):
+        ctx.composite(image, x, y, sample(p, aaWidth), replace)
+      inc x
 
 method kind*(ctx: SoftwareContext): RendererBackendKind =
   rbSoftware
@@ -329,6 +353,31 @@ func shadowProfile(distance, blur: float32): float32 =
   let sigma = max(blur * 0.5'f32, 0.5'f32)
   exp(-0.5'f32 * distance * distance / (sigma * sigma))
 
+func roundedCoverage(
+    distance, insetDistance, aa: float32, mode: SdfMode, factor, spread: float32
+): float32 =
+  result = coverage(distance, aa)
+  case mode
+  of sdfModeAnnular, sdfModeAnnularAA:
+    let band = abs(distance + factor * 0.5'f32) - factor * 0.5'f32
+    result =
+      if mode == sdfModeAnnular:
+        float32(band < 0)
+      else:
+        coverage(band, aa)
+  of sdfModeDropShadow, sdfModeDropShadowAA:
+    let d = distance - spread
+    result =
+      if d <= 0:
+        1'f32
+      else:
+        shadowProfile(d, factor)
+  of sdfModeInsetShadow, sdfModeInsetShadowAnnular:
+    let d = insetDistance + spread
+    result *= (if d >= 0: 1'f32 else: shadowProfile(d, factor))
+  else:
+    discard
+
 proc drawRounded(
     ctx: SoftwareContext,
     rect: Rect,
@@ -351,32 +400,40 @@ proc drawRounded(
         shapeSize * 0.5'f32
       else:
         rect.wh * 0.5'f32
+    field = roundedField(halfSize, radii)
+    hasInset = mode in {sdfModeInsetShadow, sdfModeInsetShadowAnnular}
+  var sampleBatch: PixelBatchSampler
+  when softwareSimdEnabled:
+    sampleBatch = proc(points: array[4, Vec2], aa: float32): array[4, ColorRGBX] =
+      var local: array[4, Vec2]
+      for lane in 0 ..< 4:
+        local[lane] = points[lane] - center
+      let distances = field.distances(local)
+      var insetDistances: array[4, float32]
+      if hasInset:
+        for lane in 0 ..< 4:
+          local[lane] -= shapeSize
+        insetDistances = field.distances(local)
+      for lane in 0 ..< 4:
+        let alpha = roundedCoverage(
+          distances[lane], insetDistances[lane], aa, mode, factor, spread
+        )
+        result[lane] = withCoverage(fill((points[lane] - rect.xy) / rect.wh), alpha)
   ctx.rasterize(
     rect,
     proc(p: Vec2, aa: float32): ColorRGBX =
-      let distance = roundedDistance(p - center, halfSize, radii)
-      var alpha = coverage(distance, aa)
-      case mode
-      of sdfModeAnnular, sdfModeAnnularAA:
-        let band = abs(distance + factor * 0.5'f32) - factor * 0.5'f32
-        alpha =
-          if mode == sdfModeAnnular:
-            float32(band < 0)
-          else:
-            coverage(band, aa)
-      of sdfModeDropShadow, sdfModeDropShadowAA:
-        let d = distance - spread
-        alpha =
-          if d <= 0:
-            1'f32
-          else:
-            shadowProfile(d, factor)
-      of sdfModeInsetShadow, sdfModeInsetShadowAnnular:
-        let d = roundedDistance(p - center - shapeSize, halfSize, radii) + spread
-        alpha *= (if d >= 0: 1'f32 else: shadowProfile(d, factor))
-      else:
-        discard
-      withCoverage(fill((p - rect.xy) / rect.wh), alpha),
+      let local = p - center
+      let distance = field.distance(local)
+      let insetDistance =
+        if hasInset:
+          field.distance(local - shapeSize)
+        else:
+          0'f32
+      withCoverage(
+        fill((p - rect.xy) / rect.wh),
+        roundedCoverage(distance, insetDistance, aa, mode, factor, spread),
+      ),
+    sampleBatch = sampleBatch,
   )
 
 method drawRoundedRectSdf*(
@@ -420,16 +477,26 @@ method drawRoundedRectSdf*(
   )
 
 method beginMask*(ctx: SoftwareContext, clipRect: Rect, radii: CornerRadii2D[float32]) =
-  let mask = newImage(ctx.backing.width, ctx.backing.height)
-  let center = clipRect.xy + clipRect.wh * 0.5'f32
+  let
+    mask = newImage(ctx.backing.width, ctx.backing.height)
+    center = clipRect.xy + clipRect.wh * 0.5'f32
+    field = roundedField(clipRect.wh * 0.5'f32, radii)
+  var sampleBatch: PixelBatchSampler
+  when softwareSimdEnabled:
+    sampleBatch = proc(points: array[4, Vec2], aa: float32): array[4, ColorRGBX] =
+      var local: array[4, Vec2]
+      for lane in 0 ..< 4:
+        local[lane] = points[lane] - center
+      let distances = field.distances(local)
+      for lane in 0 ..< 4:
+        result[lane] =
+          withCoverage(rgba(255, 255, 255, 255), coverage(distances[lane], aa))
   ctx.rasterize(
     clipRect,
     proc(p: Vec2, aa: float32): ColorRGBX =
-      withCoverage(
-        rgba(255, 255, 255, 255),
-        coverage(roundedDistance(p - center, clipRect.wh * 0.5'f32, radii), aa),
-      ),
+      withCoverage(rgba(255, 255, 255, 255), coverage(field.distance(p - center), aa)),
     mask,
+    sampleBatch = sampleBatch,
   )
   ctx.masks.add(ctx.mask)
   ctx.mask = mask
@@ -632,15 +699,29 @@ method drawBackdropBlur*(
     # Replace covered pixels with the blurred backdrop, including alpha.
     # Interpolating premultiplied channels avoids compositing translucency twice.
     let original = ctx.backing.copy()
+    let field = roundedField(rect.wh * 0.5'f32, radii)
+    proc sampleBlur(p: Vec2, aa, distance: float32): ColorRGBX =
+      let screen = mat * p - vec2(0.5'f32, 0.5'f32)
+      let alpha = coverage(distance, aa)
+      mixPixel(
+        blurred.getRgbaSmooth(screen.x, screen.y),
+        original.getRgbaSmooth(screen.x, screen.y),
+        round(alpha * 255).uint8,
+      )
+
+    var sampleBatch: PixelBatchSampler
+    when softwareSimdEnabled:
+      sampleBatch = proc(points: array[4, Vec2], aa: float32): array[4, ColorRGBX] =
+        var local: array[4, Vec2]
+        for lane in 0 ..< 4:
+          local[lane] = points[lane] - center
+        let distances = field.distances(local)
+        for lane in 0 ..< 4:
+          result[lane] = sampleBlur(points[lane], aa, distances[lane])
     ctx.rasterize(
       rect,
       proc(p: Vec2, aa: float32): ColorRGBX =
-        let screen = mat * p - vec2(0.5'f32, 0.5'f32)
-        let alpha = coverage(roundedDistance(p - center, rect.wh * 0.5'f32, radii), aa)
-        mixPixel(
-          blurred.getRgbaSmooth(screen.x, screen.y),
-          original.getRgbaSmooth(screen.x, screen.y),
-          round(alpha * 255).uint8,
-        ),
+        sampleBlur(p, aa, field.distance(p - center)),
       replace = true,
+      sampleBatch = sampleBatch,
     )
