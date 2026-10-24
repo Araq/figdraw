@@ -14,7 +14,7 @@
   shadows, nested masks, and backdrop-blur boundaries. Prepare radii once per
   draw and use the circular kernel where possible. Preserve affine sampling,
   scalar tails, gradients, and premultiplied compositing.
-- Track sdfy's SIMD branch for the upcoming 0.8.5 release (sdfy PR #7).
+- Require released sdfy 0.8.5 for SIMD span rendering.
 
 - Add an experimental sdfy software backend with elliptical corners, gradients,
   shadows, clipping, curves, distance images, and the existing glyph layout API.

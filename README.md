@@ -144,8 +144,8 @@ nim r examples/software_window.nim
 nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
 ```
 
-This feature tracks the sdfy 0.8.5 SIMD work in
-[PR #7](https://github.com/elcritch/sdfy/pull/7) and the uirelays changes in
+This feature requires released [sdfy 0.8.5](https://github.com/elcritch/sdfy/tree/v0.8.5)
+and tracks the uirelays changes in
 [PR #62](https://github.com/nim-lang/uirelays/pull/62) for full-resolution image
 presentation and preservation of Cocoa content during live resizing.
 
