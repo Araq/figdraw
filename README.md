@@ -115,13 +115,14 @@ strokes, shadows, nested clips, affine transforms, curves, MSDF/MTSDF images,
 and backdrop blur. It keeps `typeset`, `placeGlyphs`, glyph IDs, selection
 geometry, font fallback, and image/font cache invalidation.
 
-Rounded fills, strokes, shadows, clip masks, and backdrop-blur boundaries
-evaluate four distances at a time using SSE2 or NEON. Circular corners use
-sdfy's dedicated circular kernel. Gradients and premultiplied compositing
-remain in FigDraw, so transformed shapes render directly into the framebuffer
-without a temporary shape image. Partial batches and unsupported CPUs use
-scalar distances; `-d:figdrawNoSimd` disables software distance batching for
-comparison, and `-d:sdfyNoSimd` also selects the scalar path.
+Rounded fills, strokes, shadows, and clip masks render directly into framebuffer
+rows through sdfy's span API. SSE2/NEON accelerate affine coordinates, circular
+or elliptical distances, solid and two-/three-stop/four-corner gradients,
+coverage, mask multiplication, and premultiplied blending. Backdrop-blur
+boundaries use distance packets with FigDraw's image sampler. Partial batches
+and unsupported CPUs use scalar code. `-d:figdrawNoSimd` forces the scalar
+software path for comparison; `-d:sdfyNoSimd` also disables sdfy's SIMD paths.
+No temporary shape image or additional resampling is needed.
 
 ```sh
 atlas install --keepFeatures --feature=figdraw.uirelays

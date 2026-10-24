@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Use sdfy's borrowed span API for software rounded fills, strokes, shadows,
+  and masks. Vectorize gradients, affine coordinates, coverage, mask
+  multiplication, and premultiplied blending in addition to distance fields.
 - Retain software example scenes and fonts across redraws to avoid repeated
   font discovery, file loading, and logging.
 - Render uirelays frames and glyphs at display backing resolution. Preserve

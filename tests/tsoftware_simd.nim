@@ -102,12 +102,25 @@ when defined(features.figdraw.uirelays):
               ctx.scale(vec2(1.2, 0.85))
             elif transform == 2:
               ctx.scale(vec2(-1.15, 1.1))
-            let paint = BackendFill(
-              kind: bfLinear2,
-              lin2Start: rgba(200, 50, 20, 180),
-              lin2Stop: rgba(10, 100, 220, 110),
-              lin2Axis: fgaX,
-            )
+            # Cycle through every gradient axis and both stop counts.
+            let axis = FillGradientAxis((transform * 7 + mode.ord) mod 4)
+            let paint =
+              if mode.ord mod 2 == 0:
+                BackendFill(
+                  kind: bfLinear2,
+                  lin2Start: rgba(200, 50, 20, 180),
+                  lin2Stop: rgba(10, 100, 220, 110),
+                  lin2Axis: axis,
+                )
+              else:
+                BackendFill(
+                  kind: bfLinear3,
+                  lin3Start: rgba(200, 50, 20, 180),
+                  lin3Mid: rgba(70, 200, 30, 140),
+                  lin3Stop: rgba(10, 100, 220, 110),
+                  lin3MidPos: 0.37,
+                  lin3Axis: axis,
+                )
             ctx.drawRoundedRectSdf(box, paint, radii, mode, factor, spread, offset)
             let image = ctx.readPixels(rect(0, 0, 0, 0), false)
             var maxDelta = 0
@@ -128,7 +141,18 @@ when defined(features.figdraw.uirelays):
                     spread,
                     offset,
                   )
-                  var color = paint.sampleColor(((p - box.xy) / box.wh).x)
+                  let uv = (p - box.xy) / box.wh
+                  let t =
+                    case axis
+                    of fgaX:
+                      uv.x
+                    of fgaY:
+                      uv.y
+                    of fgaDiagTLBR:
+                      (uv.x + uv.y) * 0.5'f32
+                    of fgaDiagBLTR:
+                      (uv.x + 1'f32 - uv.y) * 0.5'f32
+                  var color = paint.sampleColor(t)
                   color.a = round(color.a.float32 * alpha).uint8
                   expected = color.rgbx()
                 let actual = image[x, y]
@@ -140,6 +164,60 @@ when defined(features.figdraw.uirelays):
                 ]:
                   maxDelta = max(maxDelta, delta)
             check maxDelta <= 1
+
+    test "four-corner paint retains backend corner order and alpha":
+      let ctx = newSoftwareContext()
+      let bounds = rect(3.25, 5.5, 59.5, 43.25)
+      let colors = [
+        rgba(210, 40, 70, 190),
+        rgba(20, 200, 150, 110),
+        rgba(40, 70, 230, 225),
+        rgba(180, 140, 30, 170),
+      ]
+      proc mix(a, b: ColorRGBA, t: float32): ColorRGBA =
+        rgba(
+          round(a.r.float32 * (1 - t) + b.r.float32 * t).uint8,
+          round(a.g.float32 * (1 - t) + b.g.float32 * t).uint8,
+          round(a.b.float32 * (1 - t) + b.b.float32 * t).uint8,
+          round(a.a.float32 * (1 - t) + b.a.float32 * t).uint8,
+        )
+
+      ctx.beginFrame(vec2(69, 57), true, color(0, 0, 0, 0))
+      ctx.drawRoundedRectSdf(
+        bounds, colors, [0'f32, 0, 0, 0], sdfModeClipAA, 0, 0, vec2(0)
+      )
+      let image = ctx.readPixels(rect(0, 0, 0, 0), false)
+      var maxDelta = 0
+      for y in 0 ..< image.height:
+        for x in 0 ..< image.width:
+          let p = vec2(x.float32 + 0.5'f32, y.float32 + 0.5'f32)
+          if p.x >= bounds.x and p.y >= bounds.y and p.x < bounds.x + bounds.w and
+              p.y < bounds.y + bounds.h:
+            let uv = (p - bounds.xy) / bounds.wh
+            var expected = mix(
+              mix(colors[3], colors[2], uv.x), mix(colors[0], colors[1], uv.x), uv.y
+            )
+            let alpha = referenceAlpha(
+              p - bounds.xy - bounds.wh * 0.5'f32,
+              bounds.wh * 0.5'f32,
+              default(CornerRadii2D[float32]),
+              1'f32 / DefaultSdfAaFactor,
+              sdfModeClipAA,
+              0,
+              0,
+              vec2(0),
+            )
+            expected.a = round(expected.a.float32 * alpha).uint8
+            let pixel = expected.rgbx()
+            let actual = image[x, y]
+            for delta in [
+              abs(pixel.r.int - actual.r.int),
+              abs(pixel.g.int - actual.g.int),
+              abs(pixel.b.int - actual.b.int),
+              abs(pixel.a.int - actual.a.int),
+            ]:
+              maxDelta = max(maxDelta, delta)
+      check maxDelta <= 1
 
     test "nested transformed masks preserve partial packets and premultiplied alpha":
       let
