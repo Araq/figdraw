@@ -2,13 +2,14 @@
 ## nim r examples/siwin_software.nim
 ## Pure software window: sdfy + automatic Sigils workers, Pixie composition.
 import std/os
-import pkg/siwin/window
+import pkg/siwin
 import figdraw
 import figdraw/software/siwin
 import ./software_scene
 
 proc main() =
-  let window = newSoftwareRenderingWindow(
+  let globals = newSiwinGlobals()
+  let window = globals.newSoftwareRenderingWindow(
     size = ivec2(560, 360), title = "FigDraw software + siwin"
   )
   let renderer = newSiwinSoftwareRenderer(window)
@@ -31,10 +32,12 @@ proc main() =
   )
   try:
     window.firstStep()
+    window.redraw()
+    window.serviceWindow()
     while running and window.opened:
-      window.redraw()
-      window.step()
-      os.sleep(16)
+      globals.waitEvents()
+      if window.opened:
+        window.serviceWindow()
   finally:
     # The presenter retains the window; release event closures before closing.
     window.eventsHandler = WindowEventsHandler()

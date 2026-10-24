@@ -7,8 +7,9 @@ import pkg/siwin/window as siWindow
 from pkg/siwin/colorutils import PixelBuffer, PixelBufferFormat
 import ../[commons, figrender]
 import ./context
+import ./layers
 
-export context
+export context, layers
 
 proc copyPixels(image: Image, buffer: PixelBuffer) =
   if buffer.format == PixelBufferFormat.rgbx_32bit:
@@ -107,21 +108,33 @@ proc newSiwinSoftwareContext*(
     background = rgba(255, 255, 255, 255),
     workers: Natural = 0,
     parallelThreshold: Positive = 262_144,
-): SoftwareContext =
+): ImageLayerContext =
   ## Attach CPU presentation to an existing Siwin software-rendering window.
   ## Render inside onRender; Siwin presents after the callback returns. The
   ## window buffer is reacquired each frame, including after resize. A reusable
   ## Pixie image composites frames for opaque windows. No GPU resources are used.
   if window.isNil or background.a != 255:
     raise newException(ValueError, "Presentation needs a window and opaque background")
-  var scratch: Image
-  newSoftwareContext(
-    workers = workers,
-    parallelThreshold = parallelThreshold,
-    presenter = proc(image: Image) =
+  var frame, scratch: Image
+  let composer = ImageComposer(
+    coordinateScale: 1,
+    beginFrame: proc(size: Vec2, clear: bool, color: Color) =
+      if frame.isNil or frame.width != size.x.int or frame.height != size.y.int:
+        frame = newImage(size.x.int, size.y.int)
+      if clear:
+        frame.fill(color)
+    ,
+    drawImage: proc(layer: LayerImage, bounds: Rect) =
+      frame.draw(layer.image, translate(bounds.xy)),
+    snapshot: proc(): Image =
+      frame.copy(),
+    endFrame: proc() =
       present(
-        image, window.pixelBuffer(), scratch, background, not window.transparent()
+        frame, window.pixelBuffer(), scratch, background, not window.transparent()
       ),
+  )
+  newImageLayerContext(
+    composer, workers = workers, parallelThreshold = parallelThreshold
   )
 
 proc newSiwinSoftwareRenderer*(

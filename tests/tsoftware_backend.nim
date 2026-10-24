@@ -175,6 +175,45 @@ when defined(features.figdraw.uirelays):
       check ctx.capture()[42, 34].a > 240
       check ctx.capture()[42, 50].a == 0
 
+    test "square quadratic caps cover the tangent extension corners":
+      let ctx = newSoftwareContext()
+      let paint = BackendFill(kind: bfColor, color: rgba(255, 255, 255, 255))
+      ctx.begin()
+      ctx.drawQuadraticBezierSdf(
+        rect(0, 0, 64, 64),
+        paint,
+        vec2(-12, -12),
+        vec2(8, -12),
+        vec2(28, 8),
+        8,
+        scSquare,
+      )
+      check ctx.capture()[16, 16].a == 255
+      ctx.begin()
+      ctx.drawQuadraticBezierSdf(
+        rect(0, 0, 64, 64), paint, vec2(-12, -12), vec2(8, -12), vec2(28, 8), 8, scRound
+      )
+      check ctx.capture()[16, 16].a == 0
+
+    test "distance images retain edge texels when enlarged or flipped":
+      let ctx = newSoftwareContext()
+      for dimension in [1, 4]:
+        let image = newImage(dimension, dimension)
+        image.fill(rgba(255, 255, 255, 255))
+        ctx.putImage(123.Hash, image)
+        for flip in [false, true]:
+          ctx.begin()
+          ctx.drawMsdfImage(
+            123.Hash, vec2(0), color(1, 1, 1, 1), vec2(16), 4, 0.5, 0, flip
+          )
+          for point in [ivec2(0, 0), ivec2(15, 0), ivec2(0, 15), ivec2(15, 15)]:
+            check ctx.capture()[point.x, point.y].a == 255
+          ctx.begin()
+          ctx.drawMtsdfImage(
+            123.Hash, vec2(0), color(1, 1, 1, 1), vec2(16), 4, 0.5, 0, flip
+          )
+          check ctx.capture()[15, 15].a == 255
+
     test "shadows preserve color alpha and fade outside elliptical shapes":
       let ctx = newSoftwareContext()
       ctx.begin()
@@ -192,15 +231,17 @@ when defined(features.figdraw.uirelays):
       check image[45, 32].a > image[52, 32].a
       check image[52, 32].a > image[59, 32].a
 
-    test "backdrop blur replaces translucent pixels without doubling alpha":
+    test "backdrop blur leaves software pixels unchanged":
       let ctx = newSoftwareContext()
       ctx.begin()
       ctx.drawRect(rect(0, 0, 32, 64), color(1, 0, 0, 0.5))
       ctx.drawRect(rect(32, 0, 32, 64), color(0, 0, 1, 0.5))
+      let before = ctx.capture()
       ctx.drawBackdropBlur(rect(16, 16, 32, 32), [0'f32, 0, 0, 0], 4)
       let image = ctx.capture()
       check image[31, 32].r > 0
-      check image[31, 32].b > 0
+      check image.data == before.data
+      check image[31, 32].b == 0
       check abs(image[31, 32].a.int - 128) <= 2
       check image[31, 8].b == 0
 

@@ -1,5 +1,5 @@
 ## Native window: nim r examples/uirelays_renderlist.nim
-## siwin window: nim r -d:features.uirelays.figDrawSiwin examples/uirelays_renderlist.nim
+## siwin window: nim r -d:features.uirelays.siwin examples/uirelays_renderlist.nim
 ## Windy window: nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
 ## Run atlas install --keepFeatures --feature=figdraw.uirelays first.
 import std/os

@@ -1,2 +1,2 @@
-switch("define", "features.uirelays.figDrawSiwin")
+switch("define", "features.uirelays.siwin")
 switch("define", "figdrawTextBackend=harfbuzzy")

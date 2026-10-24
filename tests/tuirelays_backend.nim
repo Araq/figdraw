@@ -57,7 +57,7 @@ when defined(features.figdraw.uirelays):
       check destination.w == 3
       check destination.h == 1
 
-    test "presents regular FigDraw scenes at endFrame":
+    test "submits individual images with premultiplied alpha":
       let renderer = newUirelaysRenderer()
       var nodes = newRenders()
       discard nodes.addRoot(
@@ -66,7 +66,7 @@ when defined(features.figdraw.uirelays):
       )
       renderer.renderFrame(nodes, vec2(8, 8))
       check received.len == 64
-      check received[0] == 0x000a141e'u32
+      check received[0] == 0xff0a141e'u32
       check renderer.takeOneFrameScreenshot().width == 8
 
     test "missing or rejected image relay is reported":
@@ -76,7 +76,7 @@ when defined(features.figdraw.uirelays):
       let ctx = newUirelaysContext()
       ctx.beginFrame(vec2(1, 1), true, color(1, 1, 1, 1))
       expect ValueError:
-        ctx.endFrame()
+        ctx.drawRect(rect(0, 0, 1, 1), color(1, 1, 1, 1))
       relayScreen.drawRelays.blitRGBA = nil
       check not presentUirelaysImage(image)
 
@@ -95,13 +95,12 @@ when defined(features.figdraw.uirelays):
         Fig(kind: nkRectangle, screenBox: rect(0, 0, 1, 4), fill: rgba(255, 0, 0, 255)),
       )
       renderer.renderFrame(nodes, size, clearColor = color(0, 0, 1, 1))
-      check sourceWidth == 16
+      check sourceWidth == 2
       check sourceHeight == 8
-      check destination.w == 8
+      check destination.w == 1
       check destination.h == 4
-      check received[0] == 0x00ff0000'u32
-      check received[1] == 0x00ff0000'u32
-      check received[2] == 0x000000ff'u32
+      check received[0] == 0xffff0000'u32
+      check received[1] == 0xffff0000'u32
 
     test "UI enlargement and monitor density are applied once":
       let size = configureUirelaysScale(
@@ -115,13 +114,21 @@ when defined(features.figdraw.uirelays):
     test "fractional Windows and Linux UI scales keep exact device dimensions":
       relayScreen.drawRelays.drawRGBA = recordBlit
       for percentage in [125, 150, 175, 200]:
-        for width in 800 .. 820:
+        for width in [57, 59, 67, 101, 803, 819]:
           windowLayout = relayScreen.ScreenLayout(
             width: width, height: 9, scaleX: 1, scaleY: 1, uiScale: percentage
           )
           let renderer = newUirelaysRenderer()
           let size = configureUirelaysScale(windowLayout)
           var nodes = newRenders()
+          discard nodes.addRoot(
+            0.ZLevel,
+            Fig(
+              kind: nkRectangle,
+              screenBox: rect(0, 0, size.x, size.y),
+              fill: rgba(10, 20, 30, 255),
+            ),
+          )
           renderer.renderFrame(nodes, size)
           check sourceWidth == width
           check sourceHeight == 9

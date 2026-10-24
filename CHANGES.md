@@ -2,6 +2,14 @@
 
 ## 0.46.0
 
+- Rasterize cached shape/glyph images with sdfy, with native uirelays or final
+  Pixie composition for software Siwin. Skip software/uirelays backdrop blur.
+- Add the native `uirelays_renderlist_100` launcher with the same options as
+  `siwin_uirelays_renderlist_100`, including fixed corners by default.
+- Block on Siwin events in the static pure software example instead of
+  continuously redrawing an unchanged scene.
+- Fix software square Bézier caps, clamped MSDF/MTSDF edge sampling, and small
+  fractional-scale uirelays frame sizes found during Astra review.
 - Redraw the static uirelays example only when invalidated and wait for events
   while idle; keep the renderlist stress scene continuously animated.
 - Track uirelays' `feat/rgba-alpha` branch for premultiplied-alpha drawing,

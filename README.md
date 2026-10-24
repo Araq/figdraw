@@ -111,18 +111,26 @@ The most stable entry points today are:
 
 The software backend renders ordinary FigDraw scenes into Pixie images using
 sdfy. It supports elliptical rounded corners, two- and three-stop gradients,
-strokes, shadows, nested clips, affine transforms, curves, MSDF/MTSDF images,
-and backdrop blur. It keeps `typeset`, `placeGlyphs`, glyph IDs, selection
+strokes, shadows, nested clips, affine transforms, curves, and MSDF/MTSDF images.
+Software and uirelays rendering skip backdrop blur while preserving the panel's
+fill, border, and rounded corners. It keeps `typeset`, `placeGlyphs`, glyph IDs, selection
 geometry, font fallback, and image/font cache invalidation.
 
-Rounded fills, strokes, shadows, and clip masks render directly into framebuffer
-rows through sdfy's span API. SSE2/NEON accelerate affine coordinates, circular
+Rounded fills, strokes, shadows, and clip masks rasterize through sdfy's span API.
+SSE2/NEON accelerate affine coordinates, circular
 or elliptical distances, solid and two-/three-stop/four-corner gradients,
-coverage, mask multiplication, and premultiplied blending. Backdrop-blur
-boundaries use distance packets with FigDraw's image sampler. Partial batches
+coverage, mask multiplication, and premultiplied blending. Partial batches
 and unsupported CPUs use scalar code. `-d:figdraw.sdfySimd=off` forces the scalar
 software path for comparison; `-d:sdfyNoSimd` also disables sdfy's SIMD paths.
-No temporary shape image or additional resampling is needed.
+Window adapters cache bounded shape/glyph images, reusing them across redraws
+and integer-position changes. The cache holds up to 64 MiB of image data.
+Uirelays composes these individual alpha images through its native driver;
+pure software Siwin uses Pixie only for final image composition.
+
+Explicit native uirelays screenshots compose the current frame's cached images
+on demand. They require a cleared frame that fits the image cache; capture
+raises `ValueError` if those images have been evicted or the frame exceeds
+32,768 image placements. Ordinary drawing continues when capture is unavailable.
 
 Sigils worker pools are internal and automatic. `newSoftwareContext()`,
 `newUirelaysContext()`, and `newUirelaysRenderer()` lazily use up to four workers
@@ -157,12 +165,15 @@ nim r examples/siwin_software.nim
 
 # Use a native uirelays window:
 nim r examples/uirelays_renderlist.nim
+nim r examples/uirelays_renderlist_100.nim  # same stress options as the siwin launcher
 
-# Or use uirelays' siwin / Windy window driver:
+# Use Siwin windows with native uirelays composition:
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.siwin --feature=figdraw.harfbuzz
 nim r examples/siwin_uirelays.nim  # siwin + Harfbuzzy by default
 nim r examples/siwin_uirelays_renderlist_100.nim  # 10 copies, fixed corner radii
 # Add -d:figdraw.animateCorners=on to animate the corners too.
+
+# Optional GPU presentation through Windy:
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.windy
 nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
 
@@ -206,15 +217,15 @@ software renderer's `renderFrame()` call. The helper uploads/replaces one image
 and submits the window backend frame; it does not own the window or events.
 
 For uirelays, initialize its driver and create its window, then use
-`newUirelaysRenderer()`. `renderFrame` presents the image at `endFrame`; call
-uirelays `refresh()` after drawing. Its siwin and Windy drivers retain their
-regular GPU renderer for the image upload, while FigDraw's scene is rasterized
-on the CPU. The application owns events, refresh, and shutdown, all on the
+`newUirelaysRenderer()`. `renderFrame` submits cached individual images; call
+uirelays `refresh()` after drawing. Native uirelays and its Siwin driver use
+Core Graphics, GDI, or Xft/XRender for composition. Siwin provides only the
+window and event loop. The application owns events, refresh, and shutdown, all on the
 window thread. Before building or updating scene layouts, call
 `configureUirelaysScale(layout)` and use its returned scene size for
 `renderFrame`. It combines display density with UI enlargement so glyphs and
 shapes rasterize at backing resolution. A 560×360-point Retina window receives
-a 1120×720 image, while native overlays keep their normal logical coordinates.
+images at two backing pixels per point, while native overlays keep their normal logical coordinates.
 Repeat this after a resize or monitor change. The examples retain their fonts
 and scene until their size or scale changes, avoiding per-frame font lookup.
 
@@ -225,13 +236,12 @@ the window example demonstrates both paths. Native text overlays follow
 uirelays' layout and clipping, rather than the scene's glyph selection or
 transform geometry: the relay API does not expose shaped glyph IDs.
 
-This is a CPU prototype, with scalar distance sampling and full-frame
-presentation. Perspective transforms and LCD/subpixel glyph rendering are not
-supported. Elliptical distance fields use the same approximation as FigDraw's
-GPU shaders. Presentation composites transparency against an explicit opaque
-background because uirelays' image relays ignore alpha. Drivers without
-`drawRGBA` fall back to `blitRGBA` at matching dimensions; unsupported
-high-density drawing reports an error.
+Perspective transforms and LCD/subpixel glyph rendering are not supported by
+the software renderer. Elliptical fields use the same approximation as the GPU
+shaders. Uirelays image composition requires the premultiplied-alpha mode from
+PR #63; unsupported drivers report an error. Its Unix native Siwin route uses
+X11, including XWayland on Wayland sessions. Explicit legacy FigDraw GPU drivers
+remain available for Windy or `-d:features.uirelays.figDrawSiwinGpu`.
 
 ### OpenGL windows and atlas updates
 

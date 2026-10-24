@@ -1,18 +1,20 @@
-## Present software-rendered FigDraw scenes through an installed uirelays driver.
+## Rasterize cached FigDraw constructs and compose them through uirelays.
 ##
 ## Initialize the uirelays driver and window first. This module imports only the
 ## platform-independent relays, so the application owns window/event lifetime.
-## Use uirelays' native driver or its FigDraw + siwin / Windy driver. The latter
-## retains its regular GPU renderer, avoiding recursive software presentation.
+## Native drivers and the Siwin adapter use platform drawing APIs. FigDraw GPU
+## presentation is available only through explicitly selected legacy adapters.
 ## Call uirelays `refresh()` after rendering and after any native text overlays.
 
+import std/math
 import pkg/[chroma, pixie]
 from pkg/uirelays/screen as relayScreen import nil
 from pkg/uirelays/coords as relayCoords import nil
 import ./[commons, figrender]
 import ./software/context
+import ./software/layers
 
-export context
+export context, layers
 
 proc presentUirelaysImage*(
     image: Image,
@@ -24,8 +26,8 @@ proc presentUirelaysImage*(
 ): bool =
   ## Draws the source into a destination in driver coordinates. Use logical
   ## width/height when the source contains multiple device pixels per point.
-  ## The default destination matches the image's dimensions. Transparent pixels are
-  ## composited against an opaque background because the relay ignores alpha.
+  ## The default destination matches the image's dimensions. This convenience
+  ## helper flattens transparency against `background` using the opaque format.
   ## Returns false if the installed driver cannot accept an in-memory image.
   ## Presentation must run on the thread that owns the uirelays window.
   if image.isNil or background.a != 255:
@@ -63,27 +65,56 @@ proc configureUirelaysScale*(layout: relayScreen.ScreenLayout): Vec2 =
       else:
         1'f32
   setFigUiScale(density * uiScale)
-  vec2(layout.width.float32, layout.height.float32) / uiScale
+  result = vec2(layout.width.float32, layout.height.float32) / uiScale
+  for axis in 0 ..< 2:
+    let pixels = (if axis == 0: layout.width else: layout.height).float32 * density
+    if ceil(result[axis] * figUiScale()) > pixels:
+      result[axis] = cast[float32](cast[uint32](result[axis]) - 1'u32)
 
 proc newUirelaysContext*(
     background = rgba(255, 255, 255, 255),
     workers: Natural = 0,
     parallelThreshold: Positive = 262_144,
-): SoftwareContext =
-  ## Creates a software context which blits at endFrame. Initialize a uirelays
-  ## window before the first frame. A rejected blit raises ValueError.
+): ImageLayerContext =
+  ## Rasterizes bounded, cached shape/glyph images with sdfy. The installed
+  ## driver composes those images with premultiplied alpha in draw order.
   if background.a != 255:
     raise newException(ValueError, "Presentation background must be opaque")
-  newSoftwareContext(
-    workers = workers,
-    parallelThreshold = parallelThreshold,
-    presenter = proc(image: Image) =
+  let composer = ImageComposer(
+    coordinateScale: 1,
+    packedPixels: true,
+    background: background,
+    frameScale: proc(): float32 =
       let layout = relayScreen.getWindowLayout()
-      if not presentUirelaysImage(
-        image, background, width = layout.width, height = layout.height
-      ):
-        raise newException(ValueError, "The uirelays driver cannot present RGBA pixels")
+      max(1, max(layout.scaleX, layout.scaleY)).float32,
+    beginFrame: proc(size: Vec2, clear: bool, color: Color) =
+      if clear:
+        let layout = relayScreen.getWindowLayout()
+        let source = color.rgba().rgbx()
+        let inverse = 255'u32 - source.a.uint32
+        let combined = relayScreen.color(
+          (source.r.uint32 + (background.r.uint32 * inverse + 127) div 255).uint8,
+          (source.g.uint32 + (background.g.uint32 * inverse + 127) div 255).uint8,
+          (source.b.uint32 + (background.b.uint32 * inverse + 127) div 255).uint8,
+        )
+        relayScreen.fillRect(
+          relayCoords.rect(0, 0, layout.width, layout.height), combined
+        )
     ,
+    drawImage: proc(layer: LayerImage, bounds: Rect) =
+      if not relayScreen.drawRGBA(
+        cast[ptr UncheckedArray[uint32]](unsafeAddr layer.pixels[0]),
+        layer.image.width,
+        layer.image.height,
+        relayCoords.rect(bounds.x.int, bounds.y.int, bounds.w.int, bounds.h.int),
+        relayScreen.RGBAFormat.argbPremultiplied,
+      ):
+        raise
+          newException(ValueError, "The uirelays driver cannot compose alpha images")
+    ,
+  )
+  newImageLayerContext(
+    composer, workers = workers, parallelThreshold = parallelThreshold
   )
 
 proc newUirelaysRenderer*(

@@ -8,7 +8,6 @@ import std/[hashes, math, tables]
 import pkg/[chroma, pixie, vmath]
 import pkg/sdfy/shapes
 import pkg/sdfy/spans except distances
-from pkg/sdfy/sdfytypes import MsdfBitmapParams
 import ../[commons, figbackend, fignodes]
 import ./distances
 import ./raster
@@ -103,9 +102,6 @@ func sampleFill(fill: BackendFill, uv: Vec2): ColorRGBA =
 
 func cornerVector(radii: array[DirectionCorners, float32]): Vec4 =
   vec4(radii[dcBottomRight], radii[dcTopRight], radii[dcBottomLeft], radii[dcTopLeft])
-
-proc roundedField(halfSize: Vec2, radii: CornerRadii2D[float32]): RoundedBoxField =
-  roundedBoxField(halfSize, cornerVector(radii.x), cornerVector(radii.y))
 
 proc composite(
     ctx: SoftwareContext, image: Image, x, y: int, src: ColorRGBX, replace: bool
@@ -347,6 +343,7 @@ proc newSoftwareContext*(
     presenter: FramePresenter = nil,
     workers: Natural = 0,
     parallelThreshold: Positive = 262_144,
+    subscribeImages = true,
 ): SoftwareContext =
   ## Creates a CPU renderer. An optional presenter receives each finished image.
   ## Large rounded draws use an internal lazy Sigils pool and wait before returning.
@@ -361,7 +358,8 @@ proc newSoftwareContext*(
     presenter: presenter,
     rasterWorkers: initRasterWorkers(workers, parallelThreshold),
   )
-  result.ensureImageMessageSubscription()
+  if subscribeImages:
+    result.ensureImageMessageSubscription()
 
 method drawRect*(ctx: SoftwareContext, rect: Rect, color: Color) =
   ctx.rasterize(
@@ -627,13 +625,46 @@ method drawQuadraticBezierSdf*(
               strokeWeight * 0.5'f32
             else:
               0'f32
-        distance = max(
-          distance, max(-dot(p - p0, start) - extension, dot(p - p2, stop) - extension)
-        )
+          startProjection = dot(p - p0, start)
+          endProjection = dot(p - p2, stop)
+        if cap == scSquare:
+          if startProjection < 0:
+            distance = min(distance, abs(cross(p - p0, start)) - extension)
+          if endProjection > 0:
+            distance = min(distance, abs(cross(p - p2, stop)) - extension)
+        distance =
+          max(distance, max(-startProjection - extension, endProjection - extension))
       withCoverage(
         sampleFill(fill, (p + center - rect.xy) / rect.wh), coverage(distance, aa)
       ),
   )
+
+func sampleDistance(image: Image, texel: Vec2, useAlpha: bool): float32 =
+  let
+    p = clamp(texel, vec2(0), vec2(image.width.float32 - 1, image.height.float32 - 1))
+    x0 = floor(p.x).int
+    y0 = floor(p.y).int
+    x1 = min(x0 + 1, image.width - 1)
+    y1 = min(y0 + 1, image.height - 1)
+    fx = p.x - x0.float32
+    fy = p.y - y0.float32
+  func channels(pixel: ColorRGBX): Vec3 =
+    if useAlpha:
+      vec3(pixel.a.float32 / 255'f32)
+    elif pixel.a == 0:
+      vec3(0)
+    else:
+      clamp(
+        vec3(pixel.r.float32, pixel.g.float32, pixel.b.float32) / pixel.a.float32,
+        vec3(0),
+        vec3(1),
+      )
+  let value = mix(
+    mix(channels(image[x0, y0]), channels(image[x1, y0]), fx),
+    mix(channels(image[x0, y1]), channels(image[x1, y1]), fx),
+    fy,
+  )
+  max(min(value.x, value.y), min(max(value.x, value.y), value.z))
 
 proc drawDistanceImage(
     ctx: SoftwareContext,
@@ -647,18 +678,17 @@ proc drawDistanceImage(
   if path notin ctx.entries or path notin ctx.images:
     raise newException(KeyError, "Software distance image is not cached: " & $path)
   let
-    params = MsdfBitmapParams(
-      image: ctx.images[path],
-      pxRange: pxRange,
-      sdThreshold: threshold,
-      flipY: flipY,
-      useAlpha: useAlpha,
-    )
-    center = pos + size * 0.5'f32
+    image = ctx.images[path]
+    dimensions = vec2(image.width.float32, image.height.float32)
   ctx.rasterize(
     rect(pos.x, pos.y, size.x, size.y),
     proc(p: Vec2, aa: float32): ColorRGBX =
-      var distance = sdMsdfBitmap(p - center, size, params)
+      var uv = (p - pos) / size
+      if flipY:
+        uv.y = 1'f32 - uv.y
+      var distance =
+        -pxRange *
+        (sampleDistance(image, uv * dimensions - vec2(0.5'f32), useAlpha) - threshold)
       if strokeWeight > 0:
         distance = abs(distance) - strokeWeight * 0.5'f32
       withCoverage(color.rgba(), coverage(distance, aa)),
@@ -693,38 +723,6 @@ method drawMtsdfImage*(
 method drawBackdropBlur*(
     ctx: SoftwareContext, rect: Rect, radii: CornerRadii2D[float32], blurRadius: float32
 ) =
-  if blurRadius > 0:
-    let blurred = ctx.backing.copy()
-    blurred.blur(blurRadius * ctx.pixelScaleValue)
-    let
-      center = rect.xy + rect.wh * 0.5'f32
-      mat = ctx.transform
-    # Replace covered pixels with the blurred backdrop, including alpha.
-    # Interpolating premultiplied channels avoids compositing translucency twice.
-    let original = ctx.backing.copy()
-    let field = roundedField(rect.wh * 0.5'f32, radii)
-    proc sampleBlur(p: Vec2, aa, distance: float32): ColorRGBX =
-      let screen = mat * p - vec2(0.5'f32, 0.5'f32)
-      let alpha = coverage(distance, aa)
-      mixPixel(
-        blurred.getRgbaSmooth(screen.x, screen.y),
-        original.getRgbaSmooth(screen.x, screen.y),
-        round(alpha * 255).uint8,
-      )
-
-    var sampleBatch: PixelBatchSampler
-    when softwareSimdEnabled:
-      sampleBatch = proc(points: array[4, Vec2], aa: float32): array[4, ColorRGBX] =
-        var local: array[4, Vec2]
-        for lane in 0 ..< 4:
-          local[lane] = points[lane] - center
-        let distances = field.distances(local)
-        for lane in 0 ..< 4:
-          result[lane] = sampleBlur(points[lane], aa, distances[lane])
-    ctx.rasterize(
-      rect,
-      proc(p: Vec2, aa: float32): ColorRGBX =
-        sampleBlur(p, aa, field.distance(p - center)),
-      replace = true,
-      sampleBatch = sampleBatch,
-    )
+  ## Backdrop blur is intentionally skipped in software. The scene renderer
+  ## still draws the node's fill, border, and rounded geometry.
+  discard
