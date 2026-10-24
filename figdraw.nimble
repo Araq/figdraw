@@ -45,6 +45,10 @@ feature "surfer":
 feature "siwin":
   # Merged platform ABI fixes and X11 helpers: Siwin #56, #57, and #58.
   requires "gh:levovix0/siwin#78bb49c7fd7e5e14590f567e1ccbb07eb5ab6739"
+feature "uirelays":
+  requires "gh:nim-lang/uirelays#17d036a33d43877bc9ddb11f2f3db83003548d73"
+  # sdfy 0.8.4 with elliptical rounded rectangles (sdfy PR #6).
+  requires "gh:elcritch/sdfy#dcf65caab2316cfb3e5b0ae78a93310ba808543c"
 feature "vulkan":
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 feature "metal":

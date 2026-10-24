@@ -107,6 +107,70 @@ The most stable entry points today are:
 - Scene graph nodes: `import figdraw/fignodes`
 - OpenGL backend: `import figdraw/figrender`
 
+### Experimental software rendering with uirelays
+
+The software backend renders ordinary FigDraw scenes into Pixie images using
+sdfy. It supports elliptical rounded corners, two- and three-stop gradients,
+strokes, shadows, nested clips, affine transforms, curves, MSDF/MTSDF images,
+and backdrop blur. It keeps `typeset`, `placeGlyphs`, glyph IDs, selection
+geometry, font fallback, and image/font cache invalidation.
+
+```sh
+atlas install --keepFeatures --feature=figdraw.uirelays
+
+# Capture a scene without opening a window:
+nim r examples/software_capture.nim
+
+# Use a native uirelays window:
+nim r examples/uirelays_renderlist.nim
+
+# Or use uirelays' siwin / Windy window driver:
+nim r -d:features.uirelays.figDrawSiwin examples/uirelays_renderlist.nim
+nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
+
+# Keep the siwin / Windy window and event APIs directly:
+nim r examples/software_window.nim
+nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
+```
+
+This feature pins upstream uirelays at `17d036a3` and sdfy 0.8.4 at
+`dcf65caa` while [sdfy's elliptical-corner PR](https://github.com/elcritch/sdfy/pull/6)
+is under review.
+
+For an offscreen renderer, pass `newSoftwareContext()` to `newFigRenderer`.
+`takeOneFrameScreenshot()` returns an independent Pixie image. A custom
+`FramePresenter` callback can deliver finished images to an application-owned
+window or another image consumer.
+
+Applications using siwin or Windy directly can keep an existing window renderer
+as a dedicated image presenter. Import `figdraw/software/windowing`, then call
+`presentSoftwareFrame(windowRenderer, image)` from the CPU context's presenter
+callback. Keep the usual window `beginFrame()` and `endFrame()` around the
+software renderer's `renderFrame()` call. The helper uploads/replaces one image
+and submits the window backend frame; it does not own the window or events.
+
+For uirelays, initialize its driver and create its window, then use
+`newUirelaysRenderer()`. `renderFrame` blits the image at `endFrame`; call
+uirelays `refresh()` after drawing. Its siwin and Windy drivers retain their
+regular GPU renderer for the image upload, while FigDraw's scene is rasterized
+on the CPU. The application owns events, refresh, and shutdown, all on the
+window thread. Driver coordinates correspond to source image pixels; blits
+do not scale automatically. Read `ScreenLayout.uiScale` when sizing UI content.
+
+System font families resolve through `loadTypeface`, with the normal FigDraw
+glyph rasterizer preserving shaped layouts. Native font-engine text is also
+available through uirelays `openFont` / `drawText` after the software frame;
+the window example demonstrates both paths. Native text overlays follow
+uirelays' layout and clipping, rather than the scene's glyph selection or
+transform geometry: the relay API does not expose shaped glyph IDs.
+
+This is a CPU prototype, with scalar distance sampling and full-frame
+presentation. Perspective transforms and LCD/subpixel glyph rendering are not
+supported. Elliptical distance fields use the same approximation as FigDraw's
+GPU shaders. Presentation composites transparency against an explicit opaque
+background because uirelays' `blitRGBA` ignores alpha. Drivers without that
+relay report an error; they do not silently drop frames.
+
 ### OpenGL windows and atlas updates
 
 Create the native window before its renderer, then call `setupBackend(window)`.

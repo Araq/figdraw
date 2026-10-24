@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add an experimental sdfy software backend with elliptical corners, gradients,
+  shadows, clipping, curves, distance images, and the existing glyph layout API.
+- Add optional uirelays presentation through its native, siwin, or Windy driver.
+  Pin uirelays 0.11.0's latest revision and sdfy 0.8.4's elliptical-corner branch.
+
 ## 0.45.0
 
 - Respect Harfbuzzy's static linking option when importing glyph-drawing
