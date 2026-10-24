@@ -4,7 +4,7 @@ import figdraw
 
 const copies {.intdefine: "figdraw.nodes".} = 100
 
-proc makeRenderTree*(w, h: float32, frame: int): Renders =
+proc makeRenderTree*(w, h: float32, frame: int, copyCount: int = copies): Renders =
   var list = RenderList()
   let t = frame.float32 * 0.02'f32
 
@@ -32,7 +32,7 @@ proc makeRenderTree*(w, h: float32, frame: int): Renders =
   #var rng = initRand((w.int shl 16) xor h.int xor 12345)
   var rng = initRand(12345)
 
-  for i in 0 ..< copies:
+  for i in 0 ..< copyCount:
     let baseX = rand(rng, 0.0'f32 .. maxX)
     let baseY = rand(rng, 0.0'f32 .. maxY)
     let jitterX = sin((t + i.float32 * 0.15'f32).float64).float32 * 20

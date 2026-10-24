@@ -161,6 +161,7 @@ nim r examples/uirelays_renderlist.nim
 # Or use uirelays' siwin / Windy window driver:
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.siwin --feature=figdraw.harfbuzz
 nim r examples/siwin_uirelays.nim  # siwin + Harfbuzzy by default
+nim r examples/siwin_uirelays_renderlist_100.nim  # animated stress scene (10 copies by default)
 atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.windy
 nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
 
