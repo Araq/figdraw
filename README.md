@@ -125,7 +125,9 @@ nim r examples/software_capture.nim
 nim r examples/uirelays_renderlist.nim
 
 # Or use uirelays' siwin / Windy window driver:
-nim r -d:features.uirelays.figDrawSiwin examples/uirelays_renderlist.nim
+atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.siwin --feature=figdraw.harfbuzz
+nim r examples/siwin_uirelays.nim  # siwin + Harfbuzzy by default
+atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.windy
 nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
 
 # Keep the siwin / Windy window and event APIs directly:
@@ -133,9 +135,9 @@ nim r examples/software_window.nim
 nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
 ```
 
-This feature pins upstream uirelays at `17d036a3` and sdfy 0.8.4 at
-`dcf65caa` while [sdfy's elliptical-corner PR](https://github.com/elcritch/sdfy/pull/6)
-is under review.
+This feature requires released sdfy 0.8.4 and pins the uirelays changes in
+[PR #62](https://github.com/nim-lang/uirelays/pull/62) for full-resolution image
+presentation and preservation of Cocoa content during live resizing.
 
 For an offscreen renderer, pass `newSoftwareContext()` to `newFigRenderer`.
 `takeOneFrameScreenshot()` returns an independent Pixie image. A custom
@@ -150,12 +152,17 @@ software renderer's `renderFrame()` call. The helper uploads/replaces one image
 and submits the window backend frame; it does not own the window or events.
 
 For uirelays, initialize its driver and create its window, then use
-`newUirelaysRenderer()`. `renderFrame` blits the image at `endFrame`; call
+`newUirelaysRenderer()`. `renderFrame` presents the image at `endFrame`; call
 uirelays `refresh()` after drawing. Its siwin and Windy drivers retain their
 regular GPU renderer for the image upload, while FigDraw's scene is rasterized
 on the CPU. The application owns events, refresh, and shutdown, all on the
-window thread. Driver coordinates correspond to source image pixels; blits
-do not scale automatically. Read `ScreenLayout.uiScale` when sizing UI content.
+window thread. Before building or updating scene layouts, call
+`configureUirelaysScale(layout)` and use its returned scene size for
+`renderFrame`. It combines display density with UI enlargement so glyphs and
+shapes rasterize at backing resolution. A 560×360-point Retina window receives
+a 1120×720 image, while native overlays keep their normal logical coordinates.
+Repeat this after a resize or monitor change. The examples retain their fonts
+and scene until their size or scale changes, avoiding per-frame font lookup.
 
 System font families resolve through `loadTypeface`, with the normal FigDraw
 glyph rasterizer preserving shaped layouts. Native font-engine text is also
@@ -168,8 +175,9 @@ This is a CPU prototype, with scalar distance sampling and full-frame
 presentation. Perspective transforms and LCD/subpixel glyph rendering are not
 supported. Elliptical distance fields use the same approximation as FigDraw's
 GPU shaders. Presentation composites transparency against an explicit opaque
-background because uirelays' `blitRGBA` ignores alpha. Drivers without that
-relay report an error; they do not silently drop frames.
+background because uirelays' image relays ignore alpha. Drivers without
+`drawRGBA` fall back to `blitRGBA` at matching dimensions; unsupported
+high-density drawing reports an error.
 
 ### OpenGL windows and atlas updates
 

@@ -248,7 +248,7 @@ jobs:
         nim -v
 
     - name: Install Deps
-      run: atlas install -t:8 --features:windy,sdl2,siwin,harfbuzz
+      run: atlas install -t:8 --features:windy,sdl2,siwin,harfbuzz,uirelays
 
     # - name: Build Surfer Examples
     #   if: runner.os == 'Linux' && matrix.display == 'wayland'

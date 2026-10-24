@@ -10,7 +10,7 @@ from pkg/uirelays/screen as relayScreen import nil
 from pkg/uirelays/input as relayInput import nil
 import ./software_scene
 
-proc main() =
+proc runUirelaysExample*() =
   relayBackend.initBackend()
   defer:
     relayInput.shutdown()
@@ -18,9 +18,11 @@ proc main() =
   relayScreen.setWindowTitle("FigDraw software + uirelays")
   let renderer = newUirelaysRenderer()
   var metrics: relayScreen.FontMetrics
-  let nativeFont = relayScreen.openFont("", relayScreen.scaled(initial, 18), metrics)
+  var nativeFont = relayScreen.openFont("", relayScreen.scaled(initial, 18), metrics)
   defer:
     relayScreen.closeFont(nativeFont)
+  var scene: SoftwareSceneCache
+  var fontUiScale = initial.uiScale
   var running = true
   let runOnce = getEnv("FIGDRAW_RUN_ONCE") == "1"
   while running:
@@ -36,8 +38,13 @@ proc main() =
         discard
     if running:
       let layout = relayScreen.getWindowLayout()
-      var nodes = softwareScene(layout.width.float32, layout.height.float32)
-      renderer.renderFrame(nodes, vec2(layout.width.float32, layout.height.float32))
+      let size = configureUirelaysScale(layout)
+      if fontUiScale != layout.uiScale:
+        relayScreen.closeFont(nativeFont)
+        nativeFont = relayScreen.openFont("", relayScreen.scaled(layout, 18), metrics)
+        fontUiScale = layout.uiScale
+      var nodes = scene.softwareScene(size.x, size.y)
+      renderer.renderFrame(nodes, size)
       # The native text engine remains available for overlays. Shaped FigDraw
       # text in the scene retains glyph IDs, selection geometry and transforms.
       discard relayScreen.drawText(
@@ -53,4 +60,5 @@ proc main() =
         running = false
       relayInput.sleep(16)
 
-main()
+when isMainModule:
+  runUirelaysExample()

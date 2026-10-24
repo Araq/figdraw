@@ -9,16 +9,23 @@
 import pkg/[chroma, pixie]
 from pkg/uirelays/screen as relayScreen import nil
 from pkg/uirelays/coords as relayCoords import nil
-import ./figrender
+import ./[commons, figrender]
 import ./software/context
 
 export context
 
 proc presentUirelaysImage*(
-    image: Image, background = rgba(255, 255, 255, 255), x = 0, y = 0
+    image: Image,
+    background = rgba(255, 255, 255, 255),
+    x = 0,
+    y = 0,
+    width = 0,
+    height = 0,
 ): bool =
-  ## Blits at one source pixel per driver coordinate. Transparent pixels are
-  ## composited against an opaque background because blitRGBA ignores alpha.
+  ## Draws the source into a destination in driver coordinates. Use logical
+  ## width/height when the source contains multiple device pixels per point.
+  ## The default destination matches the image's dimensions. Transparent pixels are
+  ## composited against an opaque background because the relay ignores alpha.
   ## Returns false if the installed driver cannot accept an in-memory image.
   ## Presentation must run on the thread that owns the uirelays window.
   if image.isNil or background.a != 255:
@@ -31,12 +38,32 @@ proc presentUirelaysImage*(
       g = pixel.g.uint32 + (background.g.uint32 * inverse + 127) div 255
       b = pixel.b.uint32 + (background.b.uint32 * inverse + 127) div 255
     pixels[i] = (r shl 16) or (g shl 8) or b
-  relayScreen.blitRGBA(
+  relayScreen.drawRGBA(
     cast[ptr UncheckedArray[uint32]](addr pixels[0]),
     image.width,
     image.height,
-    relayCoords.rect(x, y, image.width, image.height),
+    relayCoords.rect(
+      x,
+      y,
+      if width > 0: width else: image.width,
+      if height > 0: height else: image.height,
+    ),
   )
+
+proc configureUirelaysScale*(layout: relayScreen.ScreenLayout): Vec2 =
+  ## Sets FigDraw's raster/UI scale and returns the logical scene size.
+  ## Call before building layouts and after a window size or density change.
+  ## The raster covers the backing pixels; native uirelays drawing keeps its
+  ## usual driver coordinates and applies its own density scaling.
+  let
+    density = max(1, max(layout.scaleX, layout.scaleY)).float32
+    uiScale =
+      if layout.uiScale > 0:
+        layout.uiScale.float32 / 100'f32
+      else:
+        1'f32
+  setFigUiScale(density * uiScale)
+  vec2(layout.width.float32, layout.height.float32) / uiScale
 
 proc newUirelaysContext*(background = rgba(255, 255, 255, 255)): SoftwareContext =
   ## Creates a software context which blits at endFrame. Initialize a uirelays
@@ -45,7 +72,10 @@ proc newUirelaysContext*(background = rgba(255, 255, 255, 255)): SoftwareContext
     raise newException(ValueError, "Presentation background must be opaque")
   newSoftwareContext(
     presenter = proc(image: Image) =
-      if not presentUirelaysImage(image, background):
+      let layout = relayScreen.getWindowLayout()
+      if not presentUirelaysImage(
+        image, background, width = layout.width, height = layout.height
+      ):
         raise newException(ValueError, "The uirelays driver cannot present RGBA pixels")
   )
 
@@ -53,4 +83,7 @@ proc newUirelaysRenderer*(
     background = rgba(255, 255, 255, 255)
 ): FigRenderer[NoRendererBackendState] =
   ## Uses the normal FigDraw scene/glyph APIs and presents via uirelays.
+  let layout = relayScreen.getWindowLayout()
+  if layout.width > 0 and layout.height > 0:
+    discard configureUirelaysScale(layout)
   newFigRenderer(newUirelaysContext(background))

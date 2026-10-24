@@ -37,10 +37,12 @@ proc main() =
     )
   )
 
+  var scene: SoftwareSceneCache
+
   proc redraw() =
     host.beginFrame()
     let size = window.logicalSize()
-    var nodes = softwareScene(size.x, size.y)
+    var nodes = scene.softwareScene(size.x, size.y)
     cpu.renderFrame(nodes, size)
     host.endFrame()
 

@@ -2,10 +2,17 @@
 
 ## Unreleased
 
+- Retain software example scenes and fonts across redraws to avoid repeated
+  font discovery, file loading, and logging.
+- Render uirelays frames and glyphs at display backing resolution. Preserve
+  Cocoa contents during live resize through the pinned uirelays fixes.
+- Add `siwin_uirelays.nim`, selecting siwin and Harfbuzzy by default.
+- Require released sdfy 0.8.4.
+
 - Add an experimental sdfy software backend with elliptical corners, gradients,
   shadows, clipping, curves, distance images, and the existing glyph layout API.
 - Add optional uirelays presentation through its native, siwin, or Windy driver.
-  Pin uirelays 0.11.0's latest revision and sdfy 0.8.4's elliptical-corner branch.
+  Use uirelays 0.11.0 and sdfy 0.8.4's elliptical-corner support.
 
 ## 0.45.0
 

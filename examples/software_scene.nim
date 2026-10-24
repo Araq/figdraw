@@ -1,7 +1,14 @@
 ## Shared scene for the CPU capture and uirelays window examples.
 import figdraw
 
-proc softwareScene*(width = 560'f32, height = 360'f32): Renders =
+type SoftwareSceneCache* = object
+  font: FigFont
+  frameSize: Vec2
+  uiScale: float32
+  ready: bool
+  nodes: Renders
+
+proc buildSoftwareScene(width, height: float32, font: FigFont): Renders =
   result = newRenders()
   let root = result.addRoot(
     0.ZLevel,
@@ -59,7 +66,6 @@ proc softwareScene*(width = 560'f32, height = 360'f32): Renders =
   )
   # System font families work through the existing FigDraw glyph API.
   # Keep the bundled font as a portable fallback when Arial is unavailable.
-  let font = FigFont(typefaceId: loadTypeface("Arial", ["data/Ubuntu.ttf"]), size: 22)
   let layout = typeset(
     rect(0, 0, 492, 70),
     [
@@ -77,3 +83,20 @@ proc softwareScene*(width = 560'f32, height = 360'f32): Renders =
     root,
     Fig(kind: nkText, screenBox: rect(32, 236, 492, 70), textLayout: layout),
   )
+
+proc softwareScene*(
+    cache: var SoftwareSceneCache, width = 560'f32, height = 360'f32
+): Renders =
+  ## Resolve the font once and retain the scene until size or density changes.
+  ## Font-cache resets invalidate the retained typeface and trigger a reload.
+  if not cache.ready or not hasTypeface(cache.font.typefaceId):
+    cache.font =
+      FigFont(typefaceId: loadTypeface("Arial", ["data/Ubuntu.ttf"]), size: 22)
+    cache.ready = false
+  let frameSize = vec2(width, height)
+  if not cache.ready or cache.frameSize != frameSize or cache.uiScale != figUiScale():
+    cache.nodes = buildSoftwareScene(width, height, cache.font)
+    cache.frameSize = frameSize
+    cache.uiScale = figUiScale()
+    cache.ready = true
+  cache.nodes

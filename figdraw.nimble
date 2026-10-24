@@ -13,7 +13,7 @@ requires "chroma >= 0.2.7"
 requires "bumpy"
 requires "stack_strings"
 requires "chronicles >= 0.10.3"
-requires "sdfy >= 0.8.2"
+requires "sdfy >= 0.8.4"
 requires "nimsimd >= 1.2.5"
 requires "variant"
 requires "patty"
@@ -46,9 +46,7 @@ feature "siwin":
   # Merged platform ABI fixes and X11 helpers: Siwin #56, #57, and #58.
   requires "gh:levovix0/siwin#78bb49c7fd7e5e14590f567e1ccbb07eb5ab6739"
 feature "uirelays":
-  requires "gh:nim-lang/uirelays#17d036a33d43877bc9ddb11f2f3db83003548d73"
-  # sdfy 0.8.4 with elliptical rounded rectangles (sdfy PR #6).
-  requires "gh:elcritch/sdfy#dcf65caab2316cfb3e5b0ae78a93310ba808543c"
+  requires "gh:elcritch/uirelays#feat/hidpi-rgba"
 feature "vulkan":
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 feature "metal":

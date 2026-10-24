@@ -6,7 +6,8 @@ import figdraw/software/context
 import ./software_scene
 
 let renderer = newFigRenderer(newSoftwareContext())
-var nodes = softwareScene()
+var scene: SoftwareSceneCache
+var nodes = scene.softwareScene()
 renderer.renderFrame(nodes, vec2(560, 360))
 let output =
   if paramCount() > 0:
