@@ -10,8 +10,8 @@ from pkg/uirelays/screen as relayScreen import nil
 from pkg/uirelays/input as relayInput import nil
 import ./software_scene
 
-proc runUirelaysExample*() =
-  relayBackend.initBackend()
+proc runUirelaysExample*(initBackend: proc() {.nimcall.} = relayBackend.initBackend) =
+  initBackend()
   defer:
     relayInput.shutdown()
   let initial = relayScreen.createWindow(560, 360)
@@ -24,21 +24,15 @@ proc runUirelaysExample*() =
   var scene: SoftwareSceneCache
   var fontUiScale = initial.uiScale
   var running = true
+  var needsRedraw = true
   let runOnce = getEnv("FIGDRAW_RUN_ONCE") == "1"
   while running:
-    var event: relayInput.Event
-    while relayInput.pollEvent(event):
-      case event.kind
-      of relayInput.QuitEvent, relayInput.WindowCloseEvent:
-        running = false
-      of relayInput.KeyDownEvent:
-        if event.key == relayInput.KeyEsc:
-          running = false
-      else:
-        discard
-    if running:
+    if needsRedraw:
       let layout = relayScreen.getWindowLayout()
       let size = configureUirelaysScale(layout)
+      needsRedraw = false
+      if size.x <= 0 or size.y <= 0:
+        continue
       if fontUiScale != layout.uiScale:
         relayScreen.closeFont(nativeFont)
         nativeFont = relayScreen.openFont("", relayScreen.scaled(layout, 18), metrics)
@@ -57,8 +51,23 @@ proc runUirelaysExample*() =
       )
       relayScreen.refresh()
       if runOnce:
-        running = false
-      relayInput.sleep(16)
+        break
+    var event: relayInput.Event
+    if relayInput.waitEvent(event):
+      while true:
+        case event.kind
+        of relayInput.QuitEvent, relayInput.WindowCloseEvent:
+          running = false
+        of relayInput.KeyDownEvent:
+          if event.key == relayInput.KeyEsc:
+            running = false
+        of relayInput.NoEvent, relayInput.WindowResizeEvent,
+            relayInput.WindowMetricsEvent:
+          needsRedraw = true
+        else:
+          discard
+        if not running or not relayInput.pollEvent(event):
+          break
 
 when isMainModule:
   runUirelaysExample()

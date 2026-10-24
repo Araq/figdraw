@@ -170,6 +170,10 @@ nim r examples/software_window.nim
 nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
 ```
 
+The static uirelays scene redraws on expose, resize, or density changes and
+blocks on window events while idle. The renderlist stress example animates
+continuously to measure rendering throughput.
+
 This feature requires released [sdfy 0.8.5](https://github.com/elcritch/sdfy/tree/v0.8.5)
 and tracks upstream uirelays `master`, including merged
 [PR #62](https://github.com/nim-lang/uirelays/pull/62), for full-resolution image

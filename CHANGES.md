@@ -2,6 +2,8 @@
 
 ## 0.46.0
 
+- Redraw the static uirelays example only when invalidated and wait for events
+  while idle; keep the renderlist stress scene continuously animated.
 - Track upstream uirelays `master` after the HiDPI and resize fixes merged.
 - Present directly to Siwin software-window pixel buffers with backing-scale
   layout, resize-safe buffer acquisition, RGBA/BGRA conversion, and Pixie
