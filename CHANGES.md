@@ -1,5 +1,14 @@
 # Changes
 
+## 0.46.1
+
+- Use Harfbuzzy's 0.5.0 glyph outline API and managed font handles, removing
+  FigDraw's raw HarfBuzz draw bindings and callbacks. Pin the outline API commit
+  while upstream PR #4 is pending. The optional backend now requires Nim
+  2.2.10 and Unix `pkg-config` discovery.
+- Use the `harfbuzz-nim` static-support PR through Harfbuzzy for Unix C
+  bundled-static builds, retaining the Windows/C++ compatibility backend.
+
 ## 0.46.0
 
 - Rasterize cached shape/glyph images with sdfy, with native uirelays or final
