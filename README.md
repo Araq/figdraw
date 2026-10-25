@@ -107,6 +107,155 @@ The most stable entry points today are:
 - Scene graph nodes: `import figdraw/fignodes`
 - OpenGL backend: `import figdraw/figrender`
 
+### Experimental software rendering with uirelays or Siwin
+
+The software backend renders ordinary FigDraw scenes into Pixie images using
+sdfy. It supports elliptical rounded corners, two- and three-stop gradients,
+strokes, shadows, nested clips, affine transforms, curves, and MSDF/MTSDF images.
+Software and uirelays rendering skip backdrop blur while preserving the panel's
+fill, border, and rounded corners. It keeps `typeset`, `placeGlyphs`, glyph IDs, selection
+geometry, font fallback, and image/font cache invalidation.
+
+Rounded fills, strokes, shadows, and clip masks rasterize through sdfy's span API.
+SSE2/NEON accelerate affine coordinates, circular
+or elliptical distances, solid and two-/three-stop/four-corner gradients,
+coverage, mask multiplication, and premultiplied blending. Partial batches
+and unsupported CPUs use scalar code. `-d:figdraw.sdfySimd=off` forces the scalar
+software path for comparison; `-d:sdfyNoSimd` also disables sdfy's SIMD paths.
+Window adapters cache bounded shape/glyph images, reusing them across redraws
+and integer-position changes. The cache holds up to 64 MiB of image data.
+Uirelays composes these individual alpha images through its native driver;
+pure software Siwin uses Pixie only for final image composition.
+Solid square fills use uirelays' native `fillRect` when their transformed edges
+align with driver coordinates. Gradients, rounded shapes, masked or fractional
+placements, and effects retain the raster image path. Native fills allocate
+no FigDraw image and still appear in explicit screenshots.
+Pass `maxCacheBytes` to `newUirelaysContext` or `newUirelaysRenderer` when the
+visible images need a larger cache, especially at high display density.
+`ImageLayerContext.imageCacheStats()` reports the current frame's hits/misses
+and retained bytes/entries.
+Oversized images bypass the cache without evicting images they cannot replace.
+
+Explicit native uirelays screenshots compose the current frame's cached images
+on demand. They require a cleared frame that fits the image cache; capture
+raises `ValueError` if those images have been evicted or the frame exceeds
+32,768 image placements. Ordinary drawing continues when capture is unavailable.
+
+Sigils worker pools are internal and automatic. `newSoftwareContext()`,
+`newUirelaysContext()`, and `newUirelaysRenderer()` lazily use up to four workers
+for large rounded draws. No scheduler setup or shutdown is required. Contexts
+with the same worker count share a runtime pool, which stops at process exit.
+Use `workers = 1` to force inline rendering, or `workers = 4` to request an
+explicit count (the default `workers = 0` selects up to four available CPUs).
+
+Rounded draws covering at least 262,144 framebuffer pixels dispatch disjoint
+row tiles to separate Sigils actors. `parallelThreshold` adjusts that cutoff;
+small draws stay inline. Every draw waits for all its tiles, preserving layering,
+mask nesting, resize safety, and synchronous capture/presentation. Windows,
+scene traversal, font caches, and image ownership stay on the calling thread.
+Workers receive immutable value parameters and borrowed pixel-buffer pointers,
+and worker failures are reported after all submitted tiles finish.
+
+`-d:figdraw.threadedSdfy=off` compiles out worker dispatch while retaining SIMD.
+`-d:figdraw.sdfySimd=off` disables sdfy SIMD while retaining worker dispatch.
+Both options can be disabled together. Run
+`nim r -d:release tests/bench_software_workers.nim` and repeat with
+`-d:figdraw.sdfySimd=off` to compare all four configurations.
+
+```sh
+atlas install --keepFeatures --feature=figdraw.uirelays
+
+# Capture a scene without opening a window:
+nim r examples/software_capture.nim
+
+# Use Siwin's native software window, without uirelays or GPU presentation:
+atlas install --keepFeatures --feature=figdraw.siwin --feature=figdraw.harfbuzz
+nim r examples/siwin_software.nim
+
+# Use a native uirelays window:
+nim r examples/uirelays_renderlist.nim
+nim r examples/uirelays_renderlist_100.nim  # same stress options as the siwin launcher
+
+# Use Siwin windows with native uirelays composition:
+atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.siwin --feature=figdraw.harfbuzz
+nim r examples/siwin_uirelays.nim  # siwin + Harfbuzzy by default
+nim r examples/siwin_uirelays_renderlist_100.nim  # 10 copies, only positions animate
+# Both renderlist_100 launchers default to fixed sizes, corners, and shadows,
+# integer-coordinate movement, and a 128 MiB image cache. They print cache stats.
+# -d:figdraw.animateShapes=on animates sizes and shadow parameters.
+# -d:figdraw.animateCorners=on animates corners independently.
+# -d:figdraw.imageCacheMiB=N changes the cache budget for larger scenes.
+
+# Optional GPU presentation through Windy:
+atlas install --keepFeatures --feature=figdraw.uirelays --feature=figdraw.windy
+nim r -d:features.uirelays.figDrawWindy examples/uirelays_renderlist.nim
+
+# Keep the siwin / Windy window and event APIs directly:
+nim r examples/software_window.nim
+nim r -d:figdraw.softwareWindow=windy examples/software_window.nim
+```
+
+The static uirelays scene redraws on expose, resize, or density changes and
+blocks on window events while idle. The renderlist stress example animates
+continuously to measure rendering throughput.
+
+This feature requires released [sdfy 0.8.5](https://github.com/elcritch/sdfy/tree/v0.8.5)
+and tracks uirelays' `feat/rgba-alpha` branch from the elcritch fork,
+including merged [PR #62](https://github.com/nim-lang/uirelays/pull/62) and
+[PR #63](https://github.com/nim-lang/uirelays/pull/63), for full-resolution image
+presentation and preservation of Cocoa content during live resizing.
+
+For an offscreen renderer, pass `newSoftwareContext()` to `newFigRenderer`.
+`takeOneFrameScreenshot()` returns an independent Pixie image. A custom
+`FramePresenter` callback can deliver finished images to an application-owned
+window or another image consumer.
+
+For an existing Siwin software window, import `figdraw/software/siwin` and call
+`newSiwinSoftwareRenderer(window)` or `newSiwinSoftwareContext(window)`. Create
+the window with Siwin's `newSoftwareRenderingWindow`. Inside `onRender`, call
+`configureSiwinSoftwareScale(window)` before layout and pass its logical frame
+size to `renderFrame`. The presenter reacquires the native buffer each frame,
+copies at backing resolution without resampling, and converts RGBA/BGRA formats.
+Pixie composites over the background for opaque windows; transparent buffers
+retain premultiplied alpha. The adapter uses the same automatic worker pool and
+sdfy SIMD paths as uirelays. It creates no GPU context or texture upload and does
+not require the uirelays feature. See `examples/siwin_software.nim` for events and
+shutdown, including releasing event closures before closing the window.
+
+Applications using siwin or Windy directly can keep an existing window renderer
+as a dedicated image presenter. Import `figdraw/software/windowing`, then call
+`presentSoftwareFrame(windowRenderer, image)` from the CPU context's presenter
+callback. Keep the usual window `beginFrame()` and `endFrame()` around the
+software renderer's `renderFrame()` call. The helper uploads/replaces one image
+and submits the window backend frame; it does not own the window or events.
+
+For uirelays, initialize its driver and create its window, then use
+`newUirelaysRenderer()`. `renderFrame` submits cached individual images; call
+uirelays `refresh()` after drawing. Native uirelays and its Siwin driver use
+Core Graphics, GDI, or Xft/XRender for composition. Siwin provides only the
+window and event loop. The application owns events, refresh, and shutdown, all on the
+window thread. Before building or updating scene layouts, call
+`configureUirelaysScale(layout)` and use its returned scene size for
+`renderFrame`. It combines display density with UI enlargement so glyphs and
+shapes rasterize at backing resolution. A 560×360-point Retina window receives
+images at two backing pixels per point, while native overlays keep their normal logical coordinates.
+Repeat this after a resize or monitor change. The examples retain their fonts
+and scene until their size or scale changes, avoiding per-frame font lookup.
+
+System font families resolve through `loadTypeface`, with the normal FigDraw
+glyph rasterizer preserving shaped layouts. Native font-engine text is also
+available through uirelays `openFont` / `drawText` after the software frame;
+the window example demonstrates both paths. Native text overlays follow
+uirelays' layout and clipping, rather than the scene's glyph selection or
+transform geometry: the relay API does not expose shaped glyph IDs.
+
+Perspective transforms and LCD/subpixel glyph rendering are not supported by
+the software renderer. Elliptical fields use the same approximation as the GPU
+shaders. Uirelays image composition requires the premultiplied-alpha mode from
+PR #63; unsupported drivers report an error. Its Unix native Siwin route uses
+X11, including XWayland on Wayland sessions. Explicit legacy FigDraw GPU drivers
+remain available for Windy or `-d:features.uirelays.figDrawSiwinGpu`.
+
 ### OpenGL windows and atlas updates
 
 Create the native window before its renderer, then call `setupBackend(window)`.

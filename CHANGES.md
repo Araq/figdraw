@@ -1,6 +1,55 @@
 # Changes
 
-## Unreleased
+## 0.46.0
+
+- Rasterize cached shape/glyph images with sdfy, with native uirelays or final
+  Pixie composition for software Siwin. Skip software/uirelays backdrop blur.
+- Add the native `uirelays_renderlist_100` launcher with the same options as
+  `siwin_uirelays_renderlist_100`, including fixed corners by default.
+- Block on Siwin events in the static pure software example instead of
+  continuously redrawing an unchanged scene.
+- Make native renderlist stress examples move cached images by default; opt in
+  to size/shadow animation with `figdraw.animateShapes`. Use a configurable
+  128 MiB example cache, report hits/misses, and avoid copying cached pixel
+  buffers while choosing an eviction candidate.
+- Draw aligned solid square fills through uirelays' native rectangle relay,
+  retaining mixed native/image screenshot order. Remove the stress example's
+  redundant background image and keep oversized images from flushing its cache
+  after maximizing the window.
+- Fix software square Bézier caps, clamped MSDF/MTSDF edge sampling, and small
+  fractional-scale uirelays frame sizes found during Astra review.
+- Redraw the static uirelays example only when invalidated and wait for events
+  while idle; keep the renderlist stress scene continuously animated.
+- Track uirelays' `feat/rgba-alpha` branch for premultiplied-alpha drawing,
+  native blocking Siwin event waits, refresh notification suppression, and
+  reusable RGBA upload slots.
+- Present directly to Siwin software-window pixel buffers with backing-scale
+  layout, resize-safe buffer acquisition, RGBA/BGRA conversion, and Pixie
+  composition for opaque windows. Add a Harfbuzzy-default `siwin_software`
+  example sharing sdfy SIMD and automatic workers without uirelays or a GPU
+  presentation context.
+- Use automatic internal Sigils worker pools for large software rounded
+  draws and masks, with disjoint row tiles and a barrier after each draw.
+  Add `figdraw.threadedSdfy` and `figdraw.sdfySimd` boolean build options;
+  software renderers lazily use up to four workers without application setup.
+- Use sdfy's borrowed span API for software rounded fills, strokes, shadows,
+  and masks. Vectorize gradients, affine coordinates, coverage, mask
+  multiplication, and premultiplied blending in addition to distance fields.
+- Retain software example scenes and fonts across redraws to avoid repeated
+  font discovery, file loading, and logging.
+- Render uirelays frames and glyphs at display backing resolution. Preserve
+  Cocoa contents during live resize through the pinned uirelays fixes.
+- Add `siwin_uirelays.nim`, selecting siwin and Harfbuzzy by default.
+- Batch rounded-shape distances using SSE2/NEON in software fills, strokes,
+  shadows, nested masks, and backdrop-blur boundaries. Prepare radii once per
+  draw and use the circular kernel where possible. Preserve affine sampling,
+  scalar tails, gradients, and premultiplied compositing.
+- Require released sdfy 0.8.5 for SIMD span rendering.
+
+- Add an experimental sdfy software backend with elliptical corners, gradients,
+  shadows, clipping, curves, distance images, and the existing glyph layout API.
+- Add optional uirelays presentation through its native, siwin, or Windy driver.
+  Use uirelays 0.11.0 and sdfy's elliptical-corner support.
 
 ## 0.45.0
 
