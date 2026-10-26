@@ -72,6 +72,10 @@ jobs:
         build-type: 'release-msvc'
         deployment-choice: '1'
 
+    - name: Install macOS text shaping dependencies
+      if: runner.os == 'macOS'
+      run: brew install pkg-config harfbuzz fribidi
+
     - name: Install Windows text shaping dependencies
       if: runner.os == 'Windows'
       run: |

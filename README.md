@@ -876,6 +876,13 @@ Install the optional Harfbuzzy dependency when trying the repo:
 atlas install --feature:windy --feature:harfbuzz
 ```
 
+The optional backend uses Harfbuzzy's 0.5.0 outline API and requires Nim 2.2.10
+or newer. The dependency pins the outline API commit from
+[HarfBuzzy PR #4](https://github.com/elcritch/harfbuzzy/pull/4) while that release is pending.
+Harfbuzzy now uses the upstream `harfbuzz-nim` C bindings, discovered and linked
+through `pkg-config` on Linux and macOS. Install `pkg-config` along with the
+native libraries on those platforms.
+
 The pure glyph-id raster backend requires HarfBuzz 7.0 or newer plus FriBidi.
 For example, install `libharfbuzz-dev libfribidi-dev` on Ubuntu or
 `harfbuzz fribidi` with Homebrew before compiling it.
