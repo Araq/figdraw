@@ -411,7 +411,7 @@ proc initHarfbuzzFontInfos(font: FigFont): seq[HarfbuzzFontInfo] =
       glyphFont: fontInfo.glyph,
     )
 
-func codepointNeedsFallback(codepoint: uint32): bool =
+proc codepointNeedsFallback(codepoint: uint32): bool =
   let rune = Rune(codepoint)
   not (
     rune.isWhiteSpace or codepoint in [0x200C'u32, 0x200D'u32] or

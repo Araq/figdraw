@@ -1,5 +1,15 @@
 # Changes
 
+## 0.46.2
+
+- Require released Harfbuzzy `^= 0.5.1` for the optional HarfBuzz backend,
+  replacing the temporary outline API commit pin. This uses the merged upstream
+  `harfbuzz-nim` bindings and their static C++ and Windows fixes.
+- Use Harfbuzzy's current library override names in Windows and bundled-static
+  CI checks.
+- Fix fallback script lookup with Harfbuzzy's runtime imports in C++ and Windows
+  builds, and check C++ effect compatibility in CI.
+
 ## 0.46.1
 
 - Use Harfbuzzy's 0.5.0 glyph outline API and managed font handles, removing

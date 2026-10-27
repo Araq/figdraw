@@ -1,4 +1,4 @@
-version = "0.46.1"
+version = "0.46.2"
 author = "Jaremy Creechley"
 description = "UI Engine for Nim"
 license = "MIT"
@@ -27,8 +27,7 @@ when defined(linux) or defined(bsd) or defined(windows):
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 
 feature "harfbuzz":
-  # Harfbuzzy 0.5.0 outline API: https://github.com/elcritch/harfbuzzy/pull/4
-  requires "gh:elcritch/harfbuzzy#a36f38408632a8f26f802eea7f65832d2bcb1434"
+  requires "gh:elcritch/harfbuzzy ^= 0.5.1"
 feature "textBackendHarfbuzzy":
   discard
 feature "lottie":

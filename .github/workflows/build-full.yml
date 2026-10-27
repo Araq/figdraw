@@ -48,7 +48,7 @@ jobs:
           - os: windows-2022
             display: none
             renderer: opengl
-            nimflags: '-d:figdraw.opengl=on -d:figdraw.vulkan=off --passC:-IC:/msys64/mingw64/include/harfbuzz -d:harfbuzzyDynlib=libharfbuzz-0.dll -d:harfbuzzyFribidiDynlib=libfribidi-0.dll'
+            nimflags: '-d:figdraw.opengl=on -d:figdraw.vulkan=off --passC:-IC:/msys64/mingw64/include/harfbuzz -d:harfbuzzDynlib=libharfbuzz-0.dll -d:harfbuzzyFribidiDynlib=libfribidi-0.dll'
             force_opengl: '1'
             require_graphics: '1'
             test_exclude: ''
@@ -56,7 +56,7 @@ jobs:
           - os: windows-2022
             display: none
             renderer: vulkan
-            nimflags: '-d:figdraw.opengl=off -d:figdraw.vulkan=on -d:figdraw.openglFallback=off --passC:-IC:/msys64/mingw64/include/harfbuzz -d:harfbuzzyDynlib=libharfbuzz-0.dll -d:harfbuzzyFribidiDynlib=libfribidi-0.dll'
+            nimflags: '-d:figdraw.opengl=off -d:figdraw.vulkan=on -d:figdraw.openglFallback=off --passC:-IC:/msys64/mingw64/include/harfbuzz -d:harfbuzzDynlib=libharfbuzz-0.dll -d:harfbuzzyFribidiDynlib=libfribidi-0.dll'
             force_opengl: '0'
             require_graphics: '0'
             test_exclude: 'tfigrender_oneframe_screenshot.nim,trender_3d_overlay.nim,trender_extras.nim,trender_image.nim,trender_image_msdf_invert.nim,trender_layers_clip.nim,trender_linear_gradient.nim,trender_rgb_boxes.nim,trender_rgb_boxes_sdf.nim,trender_rgb_boxes_sdf_siwin.nim,trender_text_invert.nim,tsiwin_rect_mask_vulkan.nim'
@@ -342,13 +342,17 @@ jobs:
         nim r -d:figdraw.threadedSdfy=off tests/tsoftware_workers.nim
         nim r -d:figdraw.sdfySimd=off tests/tsoftware_workers.nim
 
+    - name: Check C++ HarfBuzz effect compatibility
+      if: runner.os == 'macOS'
+      run: nim check --backend:cpp -d:figdrawTextBackend=harfbuzzy tests/tfontutils.nim
+
     - name: Test static HarfBuzz shaping and rasterization
       if: runner.os == 'macOS'
       run: |
         brew install cmake meson ninja
         nim c -r -d:figdrawTextBackend=harfbuzzy -d:harfbuzzyStatic \
-          -d:harfbuzzyDynlib=figdraw-missing-harfbuzz \
-          -d:harfbuzzySubsetDynlib=figdraw-missing-subset \
+          -d:harfbuzzDynlib=figdraw-missing-harfbuzz \
+          -d:harfbuzzSubsetDynlib=figdraw-missing-subset \
           -d:harfbuzzyFribidiDynlib=figdraw-missing-fribidi \
           tests/tfontutils.nim
 
