@@ -24,6 +24,7 @@ suite "font cache public API":
     var glyphImageId: ImageId
     for glyph in arrangement.glyphs():
       glyphImageId = glyph.hash().ImageId
+      glyph.generateGlyph()
       break
 
     check getTypefaceInfo(id).family == "Ubuntu"

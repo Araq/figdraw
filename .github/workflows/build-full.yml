@@ -336,6 +336,15 @@ jobs:
       run: |
         nim test
 
+    - name: Test missing text libraries
+      if: runner.os == 'macOS' || (runner.os == 'Linux' && matrix.display == 'x11' && matrix.renderer == 'opengl') || (runner.os == 'Windows' && matrix.renderer == 'opengl')
+      shell: bash
+      run: |
+        nim c -r -d:figdraw.expectHarfbuzzMissing \
+          -d:harfbuzzDynlib=figdraw-missing-harfbuzz tests/ttext_backend_runtime.nim
+        nim c -r -d:figdraw.expectHarfbuzzMissing \
+          -d:harfbuzzyFribidiDynlib=figdraw-missing-fribidi tests/ttext_backend_runtime.nim
+
     - name: Test software rendering build switches
       if: runner.os == 'macOS'
       run: |

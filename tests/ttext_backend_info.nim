@@ -3,11 +3,14 @@ import std/unittest
 import figdraw/common/fonttypes
 
 suite "text backend information":
-  test "reports the compiled text backend":
-    check textBackend() == figdrawTextBackend
+  test "reports the selected text backend":
+    when runtimeTextBackends:
+      check textBackend() in ["pixie", "harfbuzzy"]
+    else:
+      check textBackend() == figdrawTextBackend
 
   test "reports backend-specific text features":
-    case figdrawTextBackend
+    case textBackend()
     of "pixie":
       check textBackendFeatures() == @["pixie-typesetting", "pixie-rasterization"]
     of "harfbuzzy":

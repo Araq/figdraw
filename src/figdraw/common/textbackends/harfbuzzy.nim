@@ -8,8 +8,9 @@ import ../fontfallbacks
 import ../shared
 import ../typefaces
 import ./common
+import ./state
 
-when figdrawTextBackend == "hybrid":
+when figdrawTextBackend == "hybrid" or runtimeTextBackends:
   import ../fontglyphs
 
 const
@@ -819,6 +820,7 @@ proc appendEmptyLineGlyph(
   let source = decoded.sourceInsertionForDisplayByte(displayByteOffset)
   arrangement.addGlyphSpan(glyphFont, color)
   arrangement.arrangedGlyphs.add ArrangedGlyph(
+    rasterBackend: currentGlyphRaster(),
     fontId: glyphFont.fontId,
     source: source,
     rune: Rune(0),
@@ -880,6 +882,7 @@ proc appendShapedGroup(
 
       arrangement.addGlyphSpan(fontInfo.glyphFont, color)
       arrangement.arrangedGlyphs.add ArrangedGlyph(
+        rasterBackend: currentGlyphRaster(),
         fontId: fontInfo.fontId,
         glyphId: FontGlyphId(glyph.codepoint.uint32),
         cluster: glyph.cluster,
@@ -968,8 +971,8 @@ proc typesetPrepared(
   result.addFontSizePadding(fontSizes)
   result.contentHash = hash((result.contentHash, resolvedFonts))
 
-  when figdrawTextBackend == "hybrid":
-    if rasterize:
+  when figdrawTextBackend == "hybrid" or runtimeTextBackends:
+    if rasterize and selectedTextBackend() == TextBackendKind.Hybrid:
       result.generateGlyphImages()
 
 proc typeset*(
@@ -1039,6 +1042,7 @@ proc typesetSourceSpans*(
       h = h !& hash(source.bytes)
       h = h !& hash(runs)
       h = h !& hash(styles)
+      h = h !& hash(selectedTextBackend())
       h = h !& hash(hAlign)
       h = h !& hash(vAlign)
       h = h !& hash(minContent)
