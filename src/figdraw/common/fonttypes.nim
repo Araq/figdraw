@@ -2,6 +2,9 @@ import std/[hashes, isolation, unicode]
 import threading/smartptrs
 import uimaths
 import filltypes
+import ./textbackends/state
+
+export TextBackendKind, GlyphRasterBackend, figdrawTextBackend, runtimeTextBackends
 
 export uimaths
 export filltypes
@@ -92,6 +95,7 @@ type
     runeEnd*: int ## Exclusive index into GlyphArrangement.sourceRunes.
 
   ArrangedGlyph* = object
+    rasterBackend*: GlyphRasterBackend ## Rasterizer retained across backend switches.
     fontId*: FontId
     glyphId*: FontGlyphId
     cluster*: uint32
@@ -155,12 +159,6 @@ type
   SelectionSourceKind = enum
     sskRunes
     sskBytes
-
-const figdrawTextBackend* {.strdefine.} =
-  when defined(feature.figdraw.textBackendHarfbuzzy): "harfbuzzy" else: "pixie"
-
-static:
-  doAssert figdrawTextBackend in ["pixie", "harfbuzzy", "hybrid"]
 
 func utf8RuneWidth(text: string, byteOffset: int): int {.inline.} =
   if byteOffset < 0 or byteOffset >= text.len:
@@ -435,27 +433,32 @@ proc glyphArrangementView*(
       if spanIndex < owner[].spanColors.len:
         result.spanColors.add owner[].spanColors[spanIndex]
 
-func textBackend*(): string =
-  ## Text backend compiled into FigDraw.
-  figdrawTextBackend
+proc selectedTextBackend*(): TextBackendKind =
+  ## Backend selected for new layouts on the calling thread.
+  currentTextBackend()
 
-func textBackendFeatures*(): seq[string] =
-  ## Backend capabilities compiled into FigDraw.
-  case figdrawTextBackend
-  of "pixie":
+proc textBackend*(): string =
+  ## Backend selected for new layouts on the calling thread.
+  case selectedTextBackend()
+  of TextBackendKind.Pixie: "pixie"
+  of TextBackendKind.Harfbuzzy: "harfbuzzy"
+  of TextBackendKind.Hybrid: "hybrid"
+
+proc textBackendFeatures*(): seq[string] =
+  ## Capabilities of the calling thread's selected text backend.
+  case selectedTextBackend()
+  of TextBackendKind.Pixie:
     @["pixie-typesetting", "pixie-rasterization"]
-  of "harfbuzzy":
+  of TextBackendKind.Harfbuzzy:
     @[
       "harfbuzz-shaping", "glyph-id-rasterization", "bidirectional-text",
       "font-fallback", "opentype-features", "font-variations",
     ]
-  of "hybrid":
+  of TextBackendKind.Hybrid:
     @[
       "harfbuzz-shaping", "pixie-rasterization", "bidirectional-text", "font-fallback",
       "opentype-features", "font-variations",
     ]
-  else:
-    @[]
 
 func supportedFontFileExtensions*(): seq[string] =
   ## Typeface file extensions accepted by FigDraw's font loader.
@@ -1149,6 +1152,8 @@ proc getContentHash*(
   var h = Hash(0)
   h = h !& hash(size)
   h = h !& hash(uiSpans)
+  when runtimeTextBackends:
+    h = h !& hash(selectedTextBackend())
   h = h !& hash(hAlign)
   h = h !& hash(vAlign)
   h = h !& hash(minContent)

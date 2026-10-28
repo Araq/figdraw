@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- Select Harfbuzzy automatically when HarfBuzz and FriBidi are available at
+  runtime, falling back to Pixie otherwise. Existing layouts retain their
+  rasterizer when the selected backend changes.
+
 ## 0.46.2
 
 - Require released Harfbuzzy `^= 0.5.1` for the optional HarfBuzz backend,

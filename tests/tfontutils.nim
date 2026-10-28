@@ -793,7 +793,7 @@ suite "fontutils":
       h = h !& getContentHash(box.wh, spans, Left, Top)
       h = h !& hash(figUiScale())
       !$h
-    when figdrawTextBackend == "harfbuzzy" or figdrawTextBackend == "hybrid":
+    if textBackend() in ["harfbuzzy", "hybrid"]:
       expectedHash = hash((expectedHash, @[uiFont]))
     check arrangement.contentHash == expectedHash
     check arrangement.spans.len == spans.len
@@ -813,7 +813,7 @@ suite "fontutils":
       check arranged.rune == arrangement.runes[i]
       check arranged.pos == arrangement.positions[i]
       check arranged.rect == arrangement.selectionRects[i]
-      when figdrawTextBackend == "pixie":
+      if textBackend() == "pixie":
         check arranged.glyphId == syntheticFontGlyphId(arranged.fontId, arranged.rune)
       else:
         check arranged.glyphId != FontGlyphId(0)
@@ -830,13 +830,13 @@ suite "fontutils":
     for glyph in arrangement.glyphs():
       if not glyph.rune.isWhiteSpace:
         foundNonWhitespace = true
-        when figdrawTextBackend == "pixie":
+        if textBackend() == "pixie":
           check glyph.glyphId == syntheticFontGlyphId(glyph.fontId, glyph.rune)
         else:
           check glyph.glyphId != FontGlyphId(0)
         check glyph.source.runeStart >= 0
         check glyph.source.runeEnd == glyph.source.runeStart + 1
-        when figdrawTextBackend != "harfbuzzy":
+        if textBackend() != "harfbuzzy":
           check hasImage(glyph.hash().ImageId)
         break
     check foundNonWhitespace
@@ -866,21 +866,19 @@ suite "fontutils":
         spans: @[0 .. 3],
         fonts: @[glyphFont],
         sourceRunes: sourceRunes,
-        arrangedGlyphs:
-          @[
-            testGlyph(fontId, 0, 10, rect(0, 2, 12, 10)),
-            testGlyph(fontId, 1, 11, rect(12, 4, 8, 6)),
-            testGlyph(fontId, 2, 12, rect(20, 0, 10, 14)),
-            testGlyph(fontId, 3, 13, rect(30, 2, 10, 10)),
-          ],
+        arrangedGlyphs: @[
+          testGlyph(fontId, 0, 10, rect(0, 2, 12, 10)),
+          testGlyph(fontId, 1, 11, rect(12, 4, 8, 6)),
+          testGlyph(fontId, 2, 12, rect(20, 0, 10, 14)),
+          testGlyph(fontId, 3, 13, rect(30, 2, 10, 10)),
+        ],
         runes: sourceRunes,
-        selectionRects:
-          @[
-            rect(0, 2, 12, 10),
-            rect(12, 4, 8, 6),
-            rect(20, 0, 10, 14),
-            rect(30, 2, 10, 10),
-          ],
+        selectionRects: @[
+          rect(0, 2, 12, 10),
+          rect(12, 4, 8, 6),
+          rect(20, 0, 10, 14),
+          rect(30, 2, 10, 10),
+        ],
       )
 
     let rawRects = arrangement.glyphSelectionRectsFor(1 .. 2)
@@ -902,23 +900,21 @@ suite "fontutils":
         spans: @[0 .. 4],
         fonts: @[glyphFont],
         sourceRunes: sourceRunes,
-        arrangedGlyphs:
-          @[
-            testGlyph(fontId, 0, 10, rect(0, 0, 10, 14)),
-            testGlyph(fontId, 1, 11, rect(10, 0, 10, 14)),
-            testGlyph(fontId, 3, 13, rect(20, 0, 10, 14)),
-            testGlyph(fontId, 2, 12, rect(30, 0, 10, 14)),
-            testGlyph(fontId, 4, 14, rect(40, 0, 10, 14)),
-          ],
+        arrangedGlyphs: @[
+          testGlyph(fontId, 0, 10, rect(0, 0, 10, 14)),
+          testGlyph(fontId, 1, 11, rect(10, 0, 10, 14)),
+          testGlyph(fontId, 3, 13, rect(20, 0, 10, 14)),
+          testGlyph(fontId, 2, 12, rect(30, 0, 10, 14)),
+          testGlyph(fontId, 4, 14, rect(40, 0, 10, 14)),
+        ],
         runes: sourceRunes,
-        selectionRects:
-          @[
-            rect(0, 0, 10, 14),
-            rect(10, 0, 10, 14),
-            rect(20, 0, 10, 14),
-            rect(30, 0, 10, 14),
-            rect(40, 0, 10, 14),
-          ],
+        selectionRects: @[
+          rect(0, 0, 10, 14),
+          rect(10, 0, 10, 14),
+          rect(20, 0, 10, 14),
+          rect(30, 0, 10, 14),
+          rect(40, 0, 10, 14),
+        ],
       )
 
     let rawRects = arrangement.glyphSelectionRectsFor(1 .. 2)
@@ -956,12 +952,11 @@ suite "fontutils":
         spans: @[0 .. 2],
         fonts: @[glyphFont],
         sourceRunes: sourceRunes,
-        arrangedGlyphs:
-          @[
-            testGlyph(fontId, 4, 24, rect(0, 0, 10, 14)),
-            testGlyphRange(fontId, 1 .. 3, 21, rect(10, 0, 30, 14)),
-            testGlyph(fontId, 0, 20, rect(40, 0, 10, 14)),
-          ],
+        arrangedGlyphs: @[
+          testGlyph(fontId, 4, 24, rect(0, 0, 10, 14)),
+          testGlyphRange(fontId, 1 .. 3, 21, rect(10, 0, 30, 14)),
+          testGlyph(fontId, 0, 20, rect(40, 0, 10, 14)),
+        ],
         runes: sourceRunes,
         selectionRects: @[rect(0, 0, 10, 14), rect(10, 0, 30, 14), rect(40, 0, 10, 14)],
       )
@@ -979,21 +974,19 @@ suite "fontutils":
         spans: @[0 .. 3],
         fonts: @[glyphFont],
         sourceRunes: sourceRunes,
-        arrangedGlyphs:
-          @[
-            testGlyph(fontId, 0, 10, rect(0, 0, 10, 14)),
-            testGlyphRange(fontId, 1 .. 2, 21, rect(22, 0, 0, 14)),
-            testGlyphRange(fontId, 1 .. 2, 22, rect(10, 0, 20, 14)),
-            testGlyph(fontId, 3, 13, rect(30, 0, 10, 14)),
-          ],
+        arrangedGlyphs: @[
+          testGlyph(fontId, 0, 10, rect(0, 0, 10, 14)),
+          testGlyphRange(fontId, 1 .. 2, 21, rect(22, 0, 0, 14)),
+          testGlyphRange(fontId, 1 .. 2, 22, rect(10, 0, 20, 14)),
+          testGlyph(fontId, 3, 13, rect(30, 0, 10, 14)),
+        ],
         runes: sourceRunes,
-        selectionRects:
-          @[
-            rect(0, 0, 10, 14),
-            rect(22, 0, 0, 14),
-            rect(10, 0, 20, 14),
-            rect(30, 0, 10, 14),
-          ],
+        selectionRects: @[
+          rect(0, 0, 10, 14),
+          rect(22, 0, 0, 14),
+          rect(10, 0, 20, 14),
+          rect(30, 0, 10, 14),
+        ],
       )
 
     let
@@ -1020,21 +1013,19 @@ suite "fontutils":
         spans: @[0 .. 3],
         fonts: @[glyphFont],
         sourceRunes: sourceRunes,
-        arrangedGlyphs:
-          @[
-            testGlyph(fontId, 4, 14, rect(0, 0, 10, 14)),
-            testGlyphRange(fontId, 1 .. 2, 21, rect(22, 0, 0, 14)),
-            testGlyphRange(fontId, 1 .. 2, 22, rect(10, 0, 20, 14)),
-            testGlyph(fontId, 0, 10, rect(30, 0, 10, 14)),
-          ],
+        arrangedGlyphs: @[
+          testGlyph(fontId, 4, 14, rect(0, 0, 10, 14)),
+          testGlyphRange(fontId, 1 .. 2, 21, rect(22, 0, 0, 14)),
+          testGlyphRange(fontId, 1 .. 2, 22, rect(10, 0, 20, 14)),
+          testGlyph(fontId, 0, 10, rect(30, 0, 10, 14)),
+        ],
         runes: sourceRunes,
-        selectionRects:
-          @[
-            rect(0, 0, 10, 14),
-            rect(22, 0, 0, 14),
-            rect(10, 0, 20, 14),
-            rect(30, 0, 10, 14),
-          ],
+        selectionRects: @[
+          rect(0, 0, 10, 14),
+          rect(22, 0, 0, 14),
+          rect(10, 0, 20, 14),
+          rect(30, 0, 10, 14),
+        ],
       )
 
     let
@@ -1757,9 +1748,14 @@ suite "fontutils":
     for glyph in arrangement.glyphs():
       if glyph.rune.isWhiteSpace:
         continue
-      let sameGlyphDifferentRune =
-        GlyphPosition(fontId: glyph.fontId, glyphId: glyph.glyphId, rune: b)
+      let sameGlyphDifferentRune = GlyphPosition(
+        rasterBackend: glyph.rasterBackend,
+        fontId: glyph.fontId,
+        glyphId: glyph.glyphId,
+        rune: b,
+      )
       let differentGlyphSameRune = GlyphPosition(
+        rasterBackend: glyph.rasterBackend,
         fontId: glyph.fontId,
         glyphId: syntheticFontGlyphId(glyph.fontId, b),
         rune: glyph.rune,
@@ -1784,19 +1780,17 @@ suite "fontutils":
         fonts: @[glyphFont, glyphFont],
         spanColors: @[firstFill, secondFill],
         sourceRunes: @[rune],
-        arrangedGlyphs:
-          @[
-            ArrangedGlyph(
-              fontId: fontId,
-              glyphId: FontGlyphId(65),
-              cluster: 0,
-              source:
-                GlyphSourceRange(byteStart: 0, byteEnd: 1, runeStart: 0, runeEnd: 1),
-              rune: rune,
-              pos: vec2(10, 12),
-              rect: rect(10, 0, 8, 12),
-            )
-          ],
+        arrangedGlyphs: @[
+          ArrangedGlyph(
+            fontId: fontId,
+            glyphId: FontGlyphId(65),
+            cluster: 0,
+            source: GlyphSourceRange(byteStart: 0, byteEnd: 1, runeStart: 0, runeEnd: 1),
+            rune: rune,
+            pos: vec2(10, 12),
+            rect: rect(10, 0, 8, 12),
+          )
+        ],
       )
 
     var glyphs = newSeq[GlyphPosition]()
@@ -1874,7 +1868,7 @@ suite "fontutils":
       let charPos = vec2(glyph.pos.x, glyph.pos.y - glyph.descent)
       check abs(charPos.x - expected.x) < 0.01'f32
       check abs(charPos.y - expected.y) < 0.01'f32
-      when figdrawTextBackend == "harfbuzzy" or figdrawTextBackend == "hybrid":
+      if textBackend() in ["harfbuzzy", "hybrid"]:
         let shaped = typeset(
           rect(0, 0, 80, 40), uiFont, $glyph.rune, minContent = false, wrap = false
         )

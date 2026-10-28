@@ -9,6 +9,7 @@ requires "nim >= 2.2"
 requires "sigils >= 0.31.0"
 requires "threading >= 0.2.1"
 requires "pixie >= 5.0.1"
+requires "gh:elcritch/harfbuzzy[runtime] ^= 0.5.1"
 requires "chroma >= 0.2.7"
 requires "bumpy"
 requires "stack_strings"
@@ -27,7 +28,7 @@ when defined(linux) or defined(bsd) or defined(windows):
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 
 feature "harfbuzz":
-  requires "gh:elcritch/harfbuzzy ^= 0.5.1"
+  discard # Kept for compatibility with existing Atlas configurations.
 feature "textBackendHarfbuzzy":
   discard
 feature "lottie":
