@@ -10,7 +10,7 @@ requires "sigils >= 0.31.0"
 requires "threading >= 0.2.1"
 requires "pixie >= 5.0.1"
 # Harfbuzzy #6 adds recoverable FriBidi loading and the runtime feature.
-requires "gh:elcritch/harfbuzzy#038c46c831f76921e65fbcb0d3d7af5ee17ec9d4[runtime]"
+requires "gh:elcritch/harfbuzzy#feat/fribidi-runtime[runtime]"
 requires "chroma >= 0.2.7"
 requires "bumpy"
 requires "stack_strings"
