@@ -32,7 +32,7 @@ feature "harfbuzz":
 feature "textBackendHarfbuzzy":
   discard
 feature "textBackendUirelays":
-  requires "gh:elcritch/uirelays#422734424d4832110fb89e0e514968170d9f472d"
+  requires "gh:elcritch/uirelays#fix/native-font-lifetime"
 feature "lottie":
   requires "jsony"
 feature "sdl2":
@@ -49,7 +49,7 @@ feature "siwin":
   # Merged platform ABI fixes and X11 helpers: Siwin #56, #57, and #58.
   requires "gh:levovix0/siwin#78bb49c7fd7e5e14590f567e1ccbb07eb5ab6739"
 feature "uirelays":
-  requires "gh:elcritch/uirelays#422734424d4832110fb89e0e514968170d9f472d"
+  requires "gh:elcritch/uirelays#fix/native-font-lifetime"
 feature "vulkan":
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 feature "metal":
