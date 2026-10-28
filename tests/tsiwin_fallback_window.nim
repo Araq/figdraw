@@ -1,13 +1,13 @@
 import std/unittest
 
 import siwin/platforms
+import figdraw/commons
 import figdraw/figrender
 import figdraw/windowing/siwinshim
 
 when defined(linux) or defined(bsd):
   import siwin/platforms/x11/x11api as xlib
-  from figdraw/vulkan/vulkan_utils import nil
-when defined(windows):
+when UseVulkanBackend and (defined(linux) or defined(bsd) or defined(windows)):
   from figdraw/vulkan/vulkan_utils import nil
 
 suite "Siwin OpenGL fallback window selection":
@@ -35,7 +35,8 @@ suite "Siwin OpenGL fallback window selection":
       skip()
 
   test "a missing optional XCB bridge returns nil":
-    when (defined(linux) or defined(bsd)) and defined(features.figdraw.siwin):
+    when UseVulkanBackend and (defined(linux) or defined(bsd)) and
+        defined(features.figdraw.siwin):
       let original = xlib.XGetXCBConnection
       defer:
         xlib.XGetXCBConnection = original
@@ -58,18 +59,20 @@ suite "Siwin OpenGL fallback window selection":
           let visual = xlib.getWindowVisualInfo(display, xlib.XRootWindow(display, 0))
           check visual.visual != nil
           check visual.depth > 0
-          if xlib.x11XcbAvailable():
-            check vulkan_utils.x11XcbConnection(cast[pointer](display)) != nil
-          else:
-            check vulkan_utils.x11XcbConnection(cast[pointer](display)) == nil
+          when UseVulkanBackend:
+            if xlib.x11XcbAvailable():
+              check vulkan_utils.x11XcbConnection(cast[pointer](display)) != nil
+            else:
+              check vulkan_utils.x11XcbConnection(cast[pointer](display)) == nil
     else:
       skip()
 
   test "Win32 Vulkan surface create info carries native handles":
-    when defined(windows):
+    when defined(windows) and UseVulkanBackend:
       # Matches VkWin32SurfaceCreateInfoKHR: sType, pNext, flags, hinstance, hwnd.
-      check sizeof(vulkan_utils.VkWin32SurfaceCreateInfoKHRNative) ==
-        5 * sizeof(pointer)
+      check sizeof(vulkan_utils.VkWin32SurfaceCreateInfoKHRNative) == 5 * sizeof(
+        pointer
+      )
       var info = vulkan_utils.VkWin32SurfaceCreateInfoKHRNative(
         hinstance: cast[pointer](0x1000), hwnd: cast[pointer](0x2000)
       )
@@ -77,4 +80,3 @@ suite "Siwin OpenGL fallback window selection":
       check info.hwnd == cast[pointer](0x2000)
     else:
       skip()
-
