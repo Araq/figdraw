@@ -29,8 +29,13 @@ export canLoadTypeface
 
 when figdrawTextBackend == "harfbuzzy" or figdrawTextBackend == "hybrid":
   import ./textbackends/harfbuzzy as textBackend
+elif figdrawTextBackend == "uirelays":
+  import ./textbackends/uirelays as textBackend
 else:
   import ./textbackends/pixie as textBackend
+
+const backendResolvesPlacedGlyphs =
+  figdrawTextBackend in ["harfbuzzy", "hybrid", "uirelays"]
 
 proc fs*(font: FontRef, color: Fill = fill(rgba(0, 0, 0, 255))): FontStyle =
   fs(font.font, color)
@@ -215,7 +220,7 @@ proc placeGlyphs*(
   if glyphs.len == 0:
     return
 
-  when figdrawTextBackend != "harfbuzzy" and figdrawTextBackend != "hybrid":
+  when not backendResolvesPlacedGlyphs:
     let fontInfo = glyphFontFor(style.font)
     let cachedFont = (font: fontInfo.font, glyph: fontInfo.glyph)
 
@@ -227,7 +232,7 @@ proc placeGlyphs*(
 
   for glyphIndex, (rune, pos) in glyphs:
     let resolved =
-      when figdrawTextBackend == "harfbuzzy" or figdrawTextBackend == "hybrid":
+      when backendResolvesPlacedGlyphs:
         textBackend.resolvePlacedGlyph(style.font, rune)
       else:
         (

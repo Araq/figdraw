@@ -10,6 +10,8 @@ import ./shared
 import ./fonttypes
 when figdrawTextBackend == "harfbuzzy":
   import ./textrasters/glyphid_raster
+elif figdrawTextBackend == "uirelays":
+  import ./textrasters/uirelays_raster
 import ./textrasters/pixie_raster
 
 export applyLcdFilter
@@ -88,6 +90,8 @@ proc generateGlyph*(
       subpixelSteps = glyphVariantSubpixelSteps,
       upload = upload,
     )
+  elif figdrawTextBackend == "uirelays":
+    renderUirelaysGlyph(hashFill.ImageId, glyph.fontId, glyph.rune, upload = upload)
   else:
     renderPixieGlyph(
       hashFill.ImageId,

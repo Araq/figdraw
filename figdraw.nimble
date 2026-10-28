@@ -30,6 +30,10 @@ feature "harfbuzz":
   requires "gh:elcritch/harfbuzzy ^= 0.5.1"
 feature "textBackendHarfbuzzy":
   discard
+feature "textBackendUirelays":
+  # Platform text through uirelays; needs the "uirelays" feature too, with a
+  # driver that has `renderText` (winapi).
+  discard
 feature "lottie":
   requires "jsony"
 feature "sdl2":

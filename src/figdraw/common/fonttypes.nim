@@ -157,10 +157,12 @@ type
     sskBytes
 
 const figdrawTextBackend* {.strdefine.} =
-  when defined(feature.figdraw.textBackendHarfbuzzy): "harfbuzzy" else: "pixie"
+  when defined(feature.figdraw.textBackendHarfbuzzy): "harfbuzzy"
+  elif defined(feature.figdraw.textBackendUirelays): "uirelays"
+  else: "pixie"
 
 static:
-  doAssert figdrawTextBackend in ["pixie", "harfbuzzy", "hybrid"]
+  doAssert figdrawTextBackend in ["pixie", "harfbuzzy", "hybrid", "uirelays"]
 
 func utf8RuneWidth(text: string, byteOffset: int): int {.inline.} =
   if byteOffset < 0 or byteOffset >= text.len:
@@ -454,6 +456,8 @@ func textBackendFeatures*(): seq[string] =
       "harfbuzz-shaping", "pixie-rasterization", "bidirectional-text", "font-fallback",
       "opentype-features", "font-variations",
     ]
+  of "uirelays":
+    @["platform-measurement", "platform-rasterization"]
   else:
     @[]
 

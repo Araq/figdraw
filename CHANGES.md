@@ -1,5 +1,13 @@
 # Changes
 
+## Unreleased
+
+- Add a `uirelays` text backend (`-d:figdrawTextBackend=uirelays` or the
+  `textBackendUirelays` feature): text measured with uirelays `measureText` and
+  glyphs rasterized by its `renderText` relay, so Windows builds draw text with
+  GDI and need no HarfBuzz or FriBiDi. Requires a uirelays driver with
+  `renderText` (winapi).
+
 ## 0.46.2
 
 - Require released Harfbuzzy `^= 0.5.1` for the optional HarfBuzz backend,
