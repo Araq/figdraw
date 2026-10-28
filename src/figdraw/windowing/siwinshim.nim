@@ -33,7 +33,17 @@ when defined(linux) or defined(bsd):
       from siwin/platforms/wayland/protocol import Wl_surface, commit
       import siwin/platforms/wayland/windowOpengl as siWaylandOpenGlWindow
 when defined(windows) and UseVulkanBackend:
+  import std/importutils
   import siwin/platforms/winapi/window as siWinapiWindow
+  import siwin/platforms/winapi/winapi as siWinapi
+  privateAccess siWinapiWindow.WindowWinapiObj
+
+  proc nativeWin32InstanceHandle(): pointer =
+    cast[pointer](siWinapi.hInstance)
+
+  proc nativeWin32WindowHandle(window: siWinapiWindow.WindowWinapi): pointer =
+    cast[pointer](window.handle)
+
 when UseVulkanBackend:
   import siwin/windowVulkan as siWindowVulkan
   import ../vulkan/vulkan_context
@@ -859,18 +869,19 @@ proc setupBackend*(renderer: FigRenderer, window: Window) =
         elif defined(windows):
           let surface = cast[uint64](window.vulkanSurface())
           if window of siWinapiWindow.WindowWinapiSoftwareRendering:
-            siWinapiWindow.WindowWinapiSoftwareRendering(window).setSoftwarePresentEnabled(
-              false
-            )
+            let softwareWindow = siWinapiWindow.WindowWinapiSoftwareRendering(window)
+            # Older Siwin revisions always BitBlt the software buffer.
+            when compiles(softwareWindow.setSoftwarePresentEnabled(false)):
+              softwareWindow.setSoftwarePresentEnabled(false)
           if surface != 0:
             vkCtx.setExternalSurface(surface, presentTargetWin32, ownedByContext = true)
             hasPresentTarget = true
           elif window of siWinapiWindow.WindowWinapi:
             # Windows created without a Vulkan instance have no Siwin surface.
             # Present directly to the native window instead.
-            let winapiWindow = siWinapiWindow.WindowWinapi(window)
             vkCtx.setPresentWin32Target(
-              winapiWindow.nativeInstanceHandle(), winapiWindow.nativeWindowHandle()
+              nativeWin32InstanceHandle(),
+              nativeWin32WindowHandle(siWinapiWindow.WindowWinapi(window)),
             )
             hasPresentTarget = true
         when defined(linux) or defined(bsd):

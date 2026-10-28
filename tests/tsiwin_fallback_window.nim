@@ -8,7 +8,6 @@ when defined(linux) or defined(bsd):
   import siwin/platforms/x11/x11api as xlib
   from figdraw/vulkan/vulkan_utils import nil
 when defined(windows):
-  import siwin/platforms/winapi/window as winapiWindow
   from figdraw/vulkan/vulkan_utils import nil
 
 suite "Siwin OpenGL fallback window selection":
@@ -79,17 +78,3 @@ suite "Siwin OpenGL fallback window selection":
     else:
       skip()
 
-  test "Win32 software windows expose native handles for Vulkan presentation":
-    when defined(windows):
-      let window = winapiWindow.newSoftwareRenderingWindowWinapi(
-        size = ivec2(64, 64), title = "figdraw fallback"
-      )
-      defer:
-        window.close()
-      check window.nativeWindowHandle() != nil
-      check window.nativeInstanceHandle() != nil
-      check window.softwarePresentEnabled
-      window.setSoftwarePresentEnabled(false)
-      check not window.softwarePresentEnabled
-    else:
-      skip()
