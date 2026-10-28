@@ -4,10 +4,12 @@ import pkg/vmath
 
 import ./fonttypes
 import ./fontfallbacks
+import ./textbackends/state as backendState
 
 export fontfallbacks
 
-when figdrawTextBackend != "harfbuzzy" and figdrawTextBackend != "hybrid":
+when not runtimeTextBackends and figdrawTextBackend != "harfbuzzy" and
+    figdrawTextBackend notin ["hybrid", "uirelays"]:
   import pkg/pixie/fonts
 
 import ./shared
@@ -27,15 +29,43 @@ export tryGetFigFont, tryGetTypefaceSource, tryGetTypefaceInfo
 export cacheFont, defaultFontLineHeight, getLineHeightImpl, isNil, sameFontRef
 export canLoadTypeface
 
-when figdrawTextBackend == "harfbuzzy" or figdrawTextBackend == "hybrid":
+when runtimeTextBackends:
+  import ./textbackends/runtime as textBackend
+elif figdrawTextBackend == "harfbuzzy" or figdrawTextBackend == "hybrid":
   import ./textbackends/harfbuzzy as textBackend
 elif figdrawTextBackend == "uirelays":
   import ./textbackends/uirelays as textBackend
 else:
   import ./textbackends/pixie as textBackend
 
-const backendResolvesPlacedGlyphs =
-  figdrawTextBackend in ["harfbuzzy", "hybrid", "uirelays"]
+proc textBackendAvailable*(backend: TextBackendKind): bool =
+  ## Whether this build can use the backend on the calling thread.
+  ## Runtime builds probe HarfBuzz and FriBidi without terminating on failure.
+  when runtimeTextBackends:
+    case backend
+    of TextBackendKind.Pixie:
+      true
+    of TextBackendKind.Harfbuzzy, TextBackendKind.Hybrid:
+      backendState.harfbuzzyAvailable()
+    of TextBackendKind.Uirelays:
+      false
+  else:
+    backend == selectedTextBackend()
+
+proc trySetTextBackend*(backend: TextBackendKind): bool =
+  ## Selects a backend for new layouts on this thread, leaving selection
+  ## unchanged if its libraries or required symbols are unavailable.
+  ## Existing layouts retain their rasterizer and remain usable.
+  if textBackendAvailable(backend):
+    backendState.selectTextBackend(backend)
+    return true
+
+proc setTextBackend*(backend: TextBackendKind) =
+  ## Selects a backend for new layouts on this thread.
+  ## Raises `ValueError` if the backend cannot be used by this build.
+  if not trySetTextBackend(backend):
+    var message = "text backend is unavailable: " & $backend
+    raise newException(ValueError, message)
 
 proc fs*(font: FontRef, color: Fill = fill(rgba(0, 0, 0, 255))): FontStyle =
   fs(font.font, color)
@@ -220,7 +250,8 @@ proc placeGlyphs*(
   if glyphs.len == 0:
     return
 
-  when not backendResolvesPlacedGlyphs:
+  when not runtimeTextBackends and figdrawTextBackend != "harfbuzzy" and
+      figdrawTextBackend notin ["hybrid", "uirelays"]:
     let fontInfo = glyphFontFor(style.font)
     let cachedFont = (font: fontInfo.font, glyph: fontInfo.glyph)
 
@@ -232,7 +263,8 @@ proc placeGlyphs*(
 
   for glyphIndex, (rune, pos) in glyphs:
     let resolved =
-      when backendResolvesPlacedGlyphs:
+      when runtimeTextBackends or figdrawTextBackend == "harfbuzzy" or
+          figdrawTextBackend in ["hybrid", "uirelays"]:
         textBackend.resolvePlacedGlyph(style.font, rune)
       else:
         (
@@ -261,6 +293,7 @@ proc placeGlyphs*(
 
     sourceText.add rune
     result.arrangedGlyphs.add ArrangedGlyph(
+      rasterBackend: backendState.currentGlyphRaster(),
       fontId: resolved.glyphFont.fontId,
       glyphId: resolved.glyphId,
       cluster: uint32(glyphIndex),
@@ -301,7 +334,10 @@ proc placeGlyphs*(
   result.sourceRunes = initArrangementRunes(sourceText)
   result.runes = initArrangementRunes(glyphText)
   result.lines = @[0 .. glyphs.len - 1]
-  result.contentHash = !$contentHash
+  when runtimeTextBackends:
+    result.contentHash = hash((!$contentHash, selectedTextBackend()))
+  else:
+    result.contentHash = !$contentHash
 
   var
     minX = float32.high

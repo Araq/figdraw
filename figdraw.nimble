@@ -9,6 +9,7 @@ requires "nim >= 2.2"
 requires "sigils >= 0.31.0"
 requires "threading >= 0.2.1"
 requires "pixie >= 5.0.1"
+requires "gh:elcritch/harfbuzzy >= 0.6.0[runtime]"
 requires "chroma >= 0.2.7"
 requires "bumpy"
 requires "stack_strings"
@@ -27,13 +28,11 @@ when defined(linux) or defined(bsd) or defined(windows):
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 
 feature "harfbuzz":
-  requires "gh:elcritch/harfbuzzy ^= 0.5.1"
+  discard # Kept for compatibility with existing Atlas configurations.
 feature "textBackendHarfbuzzy":
   discard
 feature "textBackendUirelays":
-  # Platform text through uirelays; needs the "uirelays" feature too, with a
-  # driver that has `renderText` (winapi).
-  discard
+  requires "gh:elcritch/uirelays#422734424d4832110fb89e0e514968170d9f472d"
 feature "lottie":
   requires "jsony"
 feature "sdl2":
@@ -50,7 +49,7 @@ feature "siwin":
   # Merged platform ABI fixes and X11 helpers: Siwin #56, #57, and #58.
   requires "gh:levovix0/siwin#78bb49c7fd7e5e14590f567e1ccbb07eb5ab6739"
 feature "uirelays":
-  requires "gh:elcritch/uirelays#feat/rgba-alpha"
+  requires "gh:elcritch/uirelays#422734424d4832110fb89e0e514968170d9f472d"
 feature "vulkan":
   requires "https://github.com/planetis-m/vulkan#b223dc9"
 feature "metal":

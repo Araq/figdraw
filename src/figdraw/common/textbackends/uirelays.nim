@@ -14,7 +14,7 @@ import ../fontglyphs
 import ../fonttypes
 import ../shared
 import ../typefaces
-import ../textrasters/uirelays_raster
+import ../textrasters/uirelays_fonts
 import ./common
 
 const maxMeasuredRun = 32
@@ -49,7 +49,7 @@ proc spanFont(style: FontStyle, scale: float32): SpanFont =
     fontId: fontId,
     size: style.font.size,
     lineHeight: result.lineHeight / scale,
-    descentAdj: result.baseline / scale,
+    descentAdj: metrics.ascent.float32 / scale,
     underline: style.font.underline,
     strikethrough: style.font.strikethrough,
   )
@@ -180,9 +180,12 @@ proc typesetWithSource(
 
   let yOffset =
     case vAlign
-    of Top: 0'f32
-    of Middle: round((box.h * scale - height) / 2)
-    of Bottom: box.h * scale - height
+    of Top:
+      0'f32
+    of Middle:
+      round((box.h * scale - height) / 2)
+    of Bottom:
+      box.h * scale - height
   for li, line in lines:
     var width = 0'f32
     var visibleWidth = 0'f32
@@ -192,9 +195,12 @@ proc typesetWithSource(
         visibleWidth = width
     var x =
       case hAlign
-      of Left: 0'f32
-      of Center: round((boxWidth - visibleWidth) / 2)
-      of Right: boxWidth - visibleWidth
+      of Left:
+        0'f32
+      of Center:
+        round((boxWidth - visibleWidth) / 2)
+      of Right:
+        boxWidth - visibleWidth
     let top = yOffset + lineTops[li]
     for i in line:
       positions[i] = vec2(x / scale, (top + lineBaselines[li]) / scale)
@@ -203,10 +209,14 @@ proc typesetWithSource(
       x += advances[i]
 
   let displayRunes =
-    if sourceRunes.isNil: initArrangementRunes(text) else: sourceRunes
+    if sourceRunes.isNil:
+      initArrangementRunes(text)
+    else:
+      sourceRunes
   var arranged =
     buildArrangedGlyphs(displayRunes, positions, selectionRects, spans, glyphFonts)
   for glyph in arranged.mitems:
+    glyph.rasterBackend = GlyphRasterBackend.Uirelays
     if glyph.rune.isLayoutControl:
       glyph.isWhitespace = true
 

@@ -8,8 +8,7 @@ Features:
 - Rects & shadows default to SDF (signed-distance-field) primitives for crisp, dynamic, and low memory UI primitives
 - Lightweight, multiplatform, and high performance by design! (few or no allocations for each frame)
 - Thread-safe renderer pipeline. (render tree construction and preparation can be done off the main thread)
-- Fast pure Nimtext rendering and layout using [Pixie](https://github.com/treeform/pixie/) by default
-- Optional Harfbuzzy support for shaping and rendering more complex scripts, font fallback, ligatures, and variable fonts!
+- Text rendering and layout using [Pixie](https://github.com/treeform/pixie/), with automatic Harfbuzzy shaping when the native libraries are available
 - Image rendering using a texture atlas.
 - Supports layering and multiple "roots" per layer - great for menus, overlays, etc.
 - SDF/MSDF (Multi-SDF) based glyph rendering.
@@ -866,35 +865,23 @@ proc makeGradientDemo(w, h: float32, uiFont: FigFont): Renders =
 
 ## Font Shaping with Harfbuzzy
 
-FigDraw uses Pixie text layout by default. For complex scripts, glyph ligatures,
-font fallback, OpenType features, and variable-font axes, compile with the
-optional Harfbuzzy backend.
+Standard builds use Harfbuzzy for complex-script shaping, ligatures, font
+fallback, OpenType features, and variable-font axes when HarfBuzz 7.0 or newer
+and FriBidi are available at runtime. Otherwise FigDraw uses Pixie for layout
+and rasterization. The native libraries are not needed to build or run the
+Pixie fallback. For example, install `libharfbuzz0b` and `libfribidi0` on
+Ubuntu or `harfbuzz` and `fribidi` with Homebrew to enable shaping.
 
-Install the optional Harfbuzzy dependency when trying the repo:
-
-```sh
-atlas install --feature:windy --feature:harfbuzz
-```
-
-The optional backend requires Harfbuzzy `^= 0.5.1` and Nim 2.2.10 or newer.
-This uses the released outline API and merged upstream `harfbuzz-nim` bindings,
-including static C++ and Windows support. Shared C builds discover and link
-HarfBuzz through `pkg-config` on Linux and macOS. Install `pkg-config` along
-with the native libraries on those platforms.
-
-The pure glyph-id raster backend requires HarfBuzz 7.0 or newer plus FriBidi.
-For example, install `libharfbuzz-dev libfribidi-dev` on Ubuntu or
-`harfbuzz fribidi` with Homebrew before compiling it.
-
-Add the `harfbuzz` feature when using FigDraw from another project:
-
-```nim
-requires "https://github.com/elcritch/figdraw[windy,harfbuzz]"
-```
+`textBackend()` and `textBackendFeatures()` report the backend selected on the
+calling thread. `trySetTextBackend(TextBackendKind.Harfbuzzy)` retries library
+discovery and switches that thread when both libraries are available; it returns
+false and leaves the current backend unchanged otherwise. Existing layouts keep
+their original rasterizer. Call `setTextBackend(TextBackendKind.Pixie)` to select
+Pixie explicitly.
 
 Note: Windy is the default example. Harfbuzz support works with Siwin, Surfer or other windowing libraries.
 
-Then compile with the Harfbuzzy text backend:
+The examples can also explicitly compile the Harfbuzzy text backend:
 
 ### windy example
 ```sh
@@ -991,11 +978,20 @@ the OpenType GSUB/GPOS tags used during shaping; they are not locale names.
 
 Useful backend modes:
 
-- `-d:figdrawTextBackend=pixie`: default Pixie layout and raster path.
+- Default: discover HarfBuzz and FriBidi at runtime and fall back to Pixie.
+- `-d:figdrawTextBackend=pixie`: Pixie layout and raster path.
 - `-d:figdrawTextBackend=harfbuzzy`: Harfbuzzy shaping with glyph-id
   rasterization.
 - `-d:figdrawTextBackend=hybrid`: Harfbuzzy layout converted through the Pixie
   compatibility raster path, useful for diagnostics.
+
+On Windows, `-d:figdrawTextBackend=uirelays` uses native GDI measurements and
+per-rune rasterization with the existing GPU glyph atlas. Enable the `uirelays`
+dependency feature, or select `textBackendUirelays` to install it and choose the
+backend together. HarfBuzz and FriBidi are not required for this build.
+This is an opt-in baseline: contextual shaping, ligatures, bidi layout, color
+emoji, and native glyph-run extraction are not yet supported. Font case
+conversion and glyph overhang beyond the advance remain limitations.
 
 When shaping is enabled, one visual glyph is not necessarily one source rune.
 Use the source-aware helpers for selection, hit testing, and carets:

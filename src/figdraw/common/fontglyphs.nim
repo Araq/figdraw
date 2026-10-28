@@ -8,27 +8,33 @@ import ./imgutils
 import ./shared
 
 import ./fonttypes
-when figdrawTextBackend == "harfbuzzy":
+import ./textbackends/state
+when figdrawTextBackend == "harfbuzzy" or runtimeTextBackends:
   import ./textrasters/glyphid_raster
-elif figdrawTextBackend == "uirelays":
+when figdrawTextBackend == "uirelays":
   import ./textrasters/uirelays_raster
 import ./textrasters/pixie_raster
 
 export applyLcdFilter
 
 proc clearGlyphRasterFontCache*(fontId: FontId) =
-  when figdrawTextBackend == "harfbuzzy":
+  when figdrawTextBackend == "harfbuzzy" or runtimeTextBackends:
     clearGlyphIdFontCache(fontId)
+  elif figdrawTextBackend == "uirelays":
+    clearUirelaysFontCache(fontId)
   else:
     discard
 
 proc clearGlyphRasterTypefaceCache*(typefaceId: TypefaceId) =
-  when figdrawTextBackend == "harfbuzzy":
+  when figdrawTextBackend == "harfbuzzy" or runtimeTextBackends:
     clearGlyphIdTypefaceCache(typefaceId)
+  elif figdrawTextBackend == "uirelays":
+    clearUirelaysTypefaceCache(typefaceId)
   else:
     discard
 
 type GlyphPosition* = ref object ## Represents a glyph position after typesetting.
+  rasterBackend*: GlyphRasterBackend ## Rasterizer retained from the layout.
   fontId*: FontId
   glyphId*: FontGlyphId
   cluster*: uint32
@@ -58,7 +64,16 @@ proc hash*(
 ): Hash {.inline.} =
   #result = hash((2344, glyph.fontId, glyph.rune, app.uiScale))
   let variant = clampGlyphVariantSubpixelStep(subpixelVariant)
-  result = hash((2344, glyph.fontId, glyph.glyphId, lcdFiltering, variant))
+  result = hash(
+    (
+      2344,
+      glyph.fontId,
+      glyph.glyphId,
+      effectiveGlyphRaster(glyph.rasterBackend),
+      lcdFiltering,
+      variant,
+    )
+  )
 
 proc generateGlyph*(
     glyph: GlyphPosition,
@@ -77,32 +92,33 @@ proc generateGlyph*(
   if (not force) and hasImage(hashFill.ImageId):
     return nil
 
-  when figdrawTextBackend == "harfbuzzy":
-    renderGlyphIdGlyph(
-      hashFill.ImageId,
-      glyph.fontId,
-      glyph.glyphId,
-      glyph.rect,
-      glyph.descent,
-      glyph.imageOffset,
-      lcdFiltering = lcdFiltering,
-      subpixelVariant = variant,
-      subpixelSteps = glyphVariantSubpixelSteps,
-      upload = upload,
-    )
-  elif figdrawTextBackend == "uirelays":
-    renderUirelaysGlyph(hashFill.ImageId, glyph.fontId, glyph.rune, upload = upload)
-  else:
-    renderPixieGlyph(
-      hashFill.ImageId,
-      glyph.fontId,
-      glyph.rune,
-      glyph.rect,
-      lcdFiltering = lcdFiltering,
-      subpixelVariant = variant,
-      subpixelSteps = glyphVariantSubpixelSteps,
-      upload = upload,
-    )
+  when figdrawTextBackend == "harfbuzzy" or runtimeTextBackends:
+    if effectiveGlyphRaster(glyph.rasterBackend) == GlyphRasterBackend.Harfbuzz:
+      return renderGlyphIdGlyph(
+        hashFill.ImageId,
+        glyph.fontId,
+        glyph.glyphId,
+        glyph.rect,
+        glyph.descent,
+        glyph.imageOffset,
+        lcdFiltering = lcdFiltering,
+        subpixelVariant = variant,
+        subpixelSteps = glyphVariantSubpixelSteps,
+        upload = upload,
+      )
+  when figdrawTextBackend == "uirelays":
+    return
+      renderUirelaysGlyph(hashFill.ImageId, glyph.fontId, glyph.rune, upload = upload)
+  renderPixieGlyph(
+    hashFill.ImageId,
+    glyph.fontId,
+    glyph.rune,
+    glyph.rect,
+    lcdFiltering = lcdFiltering,
+    subpixelVariant = variant,
+    subpixelSteps = glyphVariantSubpixelSteps,
+    upload = upload,
+  )
 
 proc buildArrangedGlyphsForUtf8(
     runes: Utf8Runes,
@@ -139,6 +155,7 @@ proc buildArrangedGlyphsForUtf8(
           else:
             rect(pos.x, pos.y, 0, 0)
       result[idx] = ArrangedGlyph(
+        rasterBackend: GlyphRasterBackend.Pixie,
         fontId: font.fontId,
         glyphId: syntheticFontGlyphId(font.fontId, rune),
         cluster: uint32(idx),
@@ -205,6 +222,7 @@ iterator glyphs*(arrangement: GlyphArrangement): GlyphPosition =
           else:
             let rune = arrangement.runes[idx]
             ArrangedGlyph(
+              rasterBackend: currentGlyphRaster(),
               fontId: gfont.fontId,
               glyphId: syntheticFontGlyphId(gfont.fontId, rune),
               cluster: uint32(idx),
@@ -221,6 +239,7 @@ iterator glyphs*(arrangement: GlyphArrangement): GlyphPosition =
         let descent = gfont.descentAdj
 
         yield GlyphPosition(
+          rasterBackend: arranged.rasterBackend,
           fontId: arranged.fontId,
           glyphId: arranged.glyphId,
           cluster: arranged.cluster,

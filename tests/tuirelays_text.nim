@@ -18,8 +18,10 @@ else:
 
     test "places runes left to right on a shared baseline":
       let text = typesetForMeasurement(
-        rect(0, 0, 400, 100), [(fs(font), "Hello, world")],
-        minContent = false, wrap = false,
+        rect(0, 0, 400, 100),
+        [(fs(font), "Hello, world")],
+        minContent = false,
+        wrap = false,
       )
       check text.lines == @[0 .. 11]
       check text.positions.len == 12
@@ -39,8 +41,10 @@ else:
 
     test "wraps words within the box and breaks lines at newlines":
       let text = typesetForMeasurement(
-        rect(0, 0, 80, 200), [(fs(font), "one two three four\nfive")],
-        minContent = false, wrap = true,
+        rect(0, 0, 80, 200),
+        [(fs(font), "one two three four\nfive")],
+        minContent = false,
+        wrap = true,
       )
       check text.lines.len >= 3
       check text.runes[text.lines[^1].a] == Rune('f')
@@ -51,8 +55,7 @@ else:
           if not text.runes[i].isWhiteSpace:
             check text.selectionRects[i].x + text.selectionRects[i].w <= 80
       for li in 1 ..< text.lines.len:
-        check text.positions[text.lines[li].a].y >
-          text.positions[text.lines[li - 1].a].y
+        check text.positions[text.lines[li].a].y > text.positions[text.lines[li - 1].a].y
 
     test "renders glyphs as white coverage on transparency":
       let image =
@@ -62,6 +65,30 @@ else:
       var inked, clear = 0
       for pixel in image.data:
         check pixel.r == pixel.a
-        if pixel.a > 0: inc inked else: inc clear
+        if pixel.a > 0:
+          inc inked
+        else:
+          inc clear
       check inked > 0
       check clear > 0
+
+    test "line spacing keeps the native bitmap baseline":
+      var spaced = font
+      spaced.lineHeight = 40
+      let native = relayFont(spaced, 1)
+      let text = typesetForMeasurement(
+        rect(0, 0, 400, 100), [(fs(spaced), "A")], minContent = false, wrap = false
+      )
+      check text.fonts[0].descentAdj == native.metrics.ascent.float32
+      check text.positions[0].y > text.fonts[0].descentAdj
+
+    test "collection faces render with their own native widths":
+      let path = getCurrentDir() / "deps/pixie/tests/fonts/PTSans.ttc"
+      let regular = FigFont(
+        typefaceId: loadTypeface(SystemTypefaceFile(path: path, faceIndex: 0)), size: 24
+      )
+      let bold = FigFont(
+        typefaceId: loadTypeface(SystemTypefaceFile(path: path, faceIndex: 1)), size: 24
+      )
+      check relayFont(regular, 1).relayTextWidth("Hello, world") !=
+        relayFont(bold, 1).relayTextWidth("Hello, world")
