@@ -44,7 +44,7 @@ feature "surfer":
   # TODO: Put this in surfer's manifest.
 feature "siwin":
   # Includes native Win32 handles and the software-present toggle.
-  requires "gh:elcritch/siwin#3121bf7bcc6568b7e873709eebd3d0b1cb26cdc1"
+  requires "gh:elcritch/siwin#c3714759ea4069253f693f84d88b0f74432f4a46"
 feature "uirelays":
   requires "gh:elcritch/uirelays#feat/rgba-alpha"
 feature "vulkan":
