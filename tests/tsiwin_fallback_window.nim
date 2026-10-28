@@ -7,6 +7,9 @@ import figdraw/windowing/siwinshim
 when defined(linux) or defined(bsd):
   import siwin/platforms/x11/x11api as xlib
   from figdraw/vulkan/vulkan_utils import nil
+when defined(windows):
+  import siwin/platforms/winapi/window as winapiWindow
+  from figdraw/vulkan/vulkan_utils import nil
 
 suite "Siwin OpenGL fallback window selection":
   test "forced OpenGL always creates an OpenGL window":
@@ -60,5 +63,33 @@ suite "Siwin OpenGL fallback window selection":
             check vulkan_utils.x11XcbConnection(cast[pointer](display)) != nil
           else:
             check vulkan_utils.x11XcbConnection(cast[pointer](display)) == nil
+    else:
+      skip()
+
+  test "Win32 Vulkan surface create info carries native handles":
+    when defined(windows):
+      # Matches VkWin32SurfaceCreateInfoKHR: sType, pNext, flags, hinstance, hwnd.
+      check sizeof(vulkan_utils.VkWin32SurfaceCreateInfoKHRNative) ==
+        5 * sizeof(pointer)
+      var info = vulkan_utils.VkWin32SurfaceCreateInfoKHRNative(
+        hinstance: cast[pointer](0x1000), hwnd: cast[pointer](0x2000)
+      )
+      check info.hinstance == cast[pointer](0x1000)
+      check info.hwnd == cast[pointer](0x2000)
+    else:
+      skip()
+
+  test "Win32 software windows expose native handles for Vulkan presentation":
+    when defined(windows):
+      let window = winapiWindow.newSoftwareRenderingWindowWinapi(
+        size = ivec2(64, 64), title = "figdraw fallback"
+      )
+      defer:
+        window.close()
+      check window.nativeWindowHandle() != nil
+      check window.nativeInstanceHandle() != nil
+      check window.softwarePresentEnabled
+      window.setSoftwarePresentEnabled(false)
+      check not window.softwarePresentEnabled
     else:
       skip()

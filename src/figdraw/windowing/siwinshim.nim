@@ -32,6 +32,8 @@ when defined(linux) or defined(bsd):
       import siwin/platforms/wayland/egl as siWaylandEgl
       from siwin/platforms/wayland/protocol import Wl_surface, commit
       import siwin/platforms/wayland/windowOpengl as siWaylandOpenGlWindow
+when defined(windows) and UseVulkanBackend:
+  import siwin/platforms/winapi/window as siWinapiWindow
 when UseVulkanBackend:
   import siwin/windowVulkan as siWindowVulkan
   import ../vulkan/vulkan_context
@@ -856,8 +858,20 @@ proc setupBackend*(renderer: FigRenderer, window: Window) =
               hasPresentTarget = true
         elif defined(windows):
           let surface = cast[uint64](window.vulkanSurface())
+          if window of siWinapiWindow.WindowWinapiSoftwareRendering:
+            siWinapiWindow.WindowWinapiSoftwareRendering(window).setSoftwarePresentEnabled(
+              false
+            )
           if surface != 0:
             vkCtx.setExternalSurface(surface, presentTargetWin32, ownedByContext = true)
+            hasPresentTarget = true
+          elif window of siWinapiWindow.WindowWinapi:
+            # Windows created without a Vulkan instance have no Siwin surface.
+            # Present directly to the native window instead.
+            let winapiWindow = siWinapiWindow.WindowWinapi(window)
+            vkCtx.setPresentWin32Target(
+              winapiWindow.nativeInstanceHandle(), winapiWindow.nativeWindowHandle()
+            )
             hasPresentTarget = true
         when defined(linux) or defined(bsd):
           if surface == 0 and window of siX11Window.WindowX11:
